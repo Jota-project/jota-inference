@@ -35,3 +35,4 @@ models/
 dl_models_env/
 Models/
 test_env/
+.venv/

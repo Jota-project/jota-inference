@@ -1,109 +1,208 @@
 # InferenceCenter
 
-Motor de inferencia de alto rendimiento optimizado para GPUs de recursos limitados (GTX 1060 3GB), utilizando `llama.cpp` integrado directamente en C++ para máxima eficiencia y mínima latencia.
+High-performance inference engine with **parallel session support** and **API token authentication**, optimized for resource-constrained GPUs (GTX 1060 3GB). Built with `llama.cpp` directly integrated in C++ for maximum efficiency and minimal latency.
+
+## ✨ Key Features
+
+- 🔐 **API Token Authentication** - Secure client identification with constant-time comparison
+- 🚀 **Parallel Sessions** - Multiple concurrent inference sessions with independent contexts
+- 💾 **Memory Efficient** - Single shared model + multiple lightweight contexts
+- 📊 **Real-time Metrics** - GPU stats, per-session metrics, and system monitoring
+- ⚡ **Smart GPU Split** - Auto-detection of optimal GPU layer distribution
+- 🔌 **WebSocket API** - Real-time streaming with JSON protocol
+
+---
 
 ## 🚀 Quick Start
 
-### Compilación Rápida (CPU-Only)
+### 1. Build
 
 ```bash
-# Instalar dependencias
+# Install dependencies
 sudo apt-get install -y build-essential cmake git zlib1g-dev
 
-# Compilar
-cd /home/sito/InferenceCenter
+# Clone and build
+git clone <repository-url>
+cd InferenceCenter
 mkdir build && cd build
+
+# CPU-only build
 cmake -DUSE_CUDA=OFF ..
 make -j$(nproc)
 
-# Ejecutar (necesitas un modelo .gguf)
-./InferenceCore /ruta/a/modelo.gguf 3000
-```
-
-### Compilación con GPU (Recomendado)
-
-```bash
-# 1. Instalar CUDA y drivers
-sudo apt-get install -y nvidia-driver-535 nvidia-cuda-toolkit
-sudo reboot
-
-# 2. Compilar con soporte GPU
-cd /home/sito/InferenceCenter
-mkdir build && cd build
+# OR GPU-enabled build (recommended)
 cmake -DUSE_CUDA=ON ..
 make -j$(nproc)
-
-# 3. Ejecutar
-./InferenceCore /ruta/a/modelo.gguf 3000
 ```
 
-> **📖 Documentación completa**: Ver [BUILD.md](BUILD.md) para instrucciones detalladas, requisitos y solución de problemas.
+### 2. Configure Clients
+
+Edit `clients.json` to add your API clients:
+
+```json
+{
+  "clients": [
+    {
+      "client_id": "my_app",
+      "api_key": "sk_your_secure_api_key_here",
+      "max_sessions": 2,
+      "priority": "normal",
+      "description": "My Application"
+    }
+  ]
+}
+```
+
+### 3. Run Server
+
+```bash
+./InferenceCore --model /path/to/model.gguf --port 3000
+```
+
+### 4. Connect Client
+
+```python
+import asyncio
+import websockets
+import json
+
+async def example():
+    uri = "ws://localhost:3000"
+    async with websockets.connect(uri) as ws:
+        # 1. Authenticate
+        await ws.send(json.dumps({
+            "op": "auth",
+            "client_id": "my_app",
+            "api_key": "sk_your_secure_api_key_here"
+        }))
+        auth_response = await ws.recv()
+        print(auth_response)
+        
+        # 2. Create Session
+        await ws.send(json.dumps({"op": "create_session"}))
+        session_response = await ws.recv()
+        session_id = json.loads(session_response)["session_id"]
+        
+        # 3. Run Inference
+        await ws.send(json.dumps({
+            "op": "infer",
+            "session_id": session_id,
+            "prompt": "Hello, world!",
+            "params": {"temp": 0.7}
+        }))
+        
+        # 4. Receive tokens
+        while True:
+            msg = await ws.recv()
+            data = json.loads(msg)
+            if data["op"] == "token":
+                print(data["content"], end="", flush=True)
+            elif data["op"] == "end":
+                print(f"\n\nStats: {data['stats']}")
+                break
+
+asyncio.run(example())
+```
 
 ---
 
-## 📊 Estado Actual
+## 🏗️ Architecture
 
-### ✅ Fase 1: Hardware Monitoring (Completada)
-
-- **Core C++ Nativo**: Wrapper robusto sobre la API de C de `llama.cpp`
-- **Monitorización GPU**: Clase `Monitor` con NVML para rastrear VRAM, temperatura y throttling
-- **Compilación Dual**: Soporte para CPU-only y GPU-enabled
-- **WebSocket Server**: Servidor en tiempo real con streaming de tokens
-- **Protocolo JSON**: Operaciones `INFER`, `ABORT`, `TOKEN`, `END`
-
-### ✅ Fase 2: Smart Split Computing + Metrics (Completada)
-
-- **Auto-detección GPU**: Calcula automáticamente cuántas capas cargar en GPU según VRAM disponible
-- **Buffer de seguridad**: Reserva 500MB para prevenir OOM
-- **Contexto optimizado**: Reducido a 512 tokens para conversaciones cortas
-- **Métricas en tiempo real**: Broadcasting cada 1 segundo con stats de GPU e inferencia
-- **Operación METRICS**: Nueva operación WebSocket para dashboards externos
-
-> **📖 Ver**: [docs/PHASE2_WALKTHROUGH.md](docs/PHASE2_WALKTHROUGH.md) para detalles de implementación
-
-### 🔄 Próximas Fases
-
-- [ ] **Fase 3**: Watchdog (detección de cuelgues y auto-recuperación)
-- [ ] **Fase 4**: Cliente Web (UI para testing y visualización de métricas)
-- [ ] **Fase 5**: Producción (systemd, logging estructurado)
-
----
-
-## 🏗️ Arquitectura
+### Core Components
 
 ```
 src/
 ├── core/
-│   ├── Engine.cpp/.h        # Motor de inferencia (llama.cpp wrapper)
-│   └── Allocator.h          # (Futuro) Gestión de KV Cache
+│   ├── Engine.cpp/.h           # Model loader (shared across sessions)
+│   ├── Session.cpp/.h          # Individual inference session
+│   └── SessionManager.cpp/.h   # Session lifecycle management
 ├── server/
-│   ├── WsServer.cpp/.h      # Servidor WebSocket (uWebSockets)
-│   ├── Protocol.h           # Definiciones de protocolo JSON
-│   └── Client.h             # Estado por cliente
+│   ├── WsServer.cpp/.h         # WebSocket server with thread pool
+│   ├── Protocol.h              # JSON protocol definitions
+│   └── ClientAuth.cpp/.h       # API token authentication
 ├── hardware/
-│   └── Monitor.cpp/.h       # Monitorización NVML (GPU stats)
-└── main.cpp                 # Punto de entrada
+│   └── Monitor.cpp/.h          # NVML GPU monitoring
+└── main.cpp                    # Entry point
 ```
 
+### Key Design Decisions
+
+**Memory Efficiency:**
+- **Single `llama_model`** loaded once in VRAM (e.g., 2-4GB)
+- **Multiple `llama_context`** instances (small, ~100MB each)
+- **Total VRAM** = Model + (N × Context) instead of N × Model
+
+**True Parallelism:**
+- Thread pool (4 workers by default)
+- Multiple sessions generate concurrently
+- No blocking between sessions
+
+**Security:**
+- API token required for all operations
+- Constant-time comparison prevents timing attacks
+- Per-client session limits
+- Session ownership verification
+
 ---
 
-## 🔧 Opciones de Compilación
+## 📡 WebSocket Protocol
 
-| Modo | Flag CMake | Requisitos | Velocidad | Monitorización |
-|------|------------|------------|-----------|----------------|
-| **CPU-Only** | `-DUSE_CUDA=OFF` | GCC, CMake | Lenta | ❌ |
-| **GPU** | `-DUSE_CUDA=ON` | CUDA, Drivers NVIDIA | 10-50x más rápida | ✅ |
+### 1. Authentication (Required First)
 
----
+**Client → Server:**
+```json
+{
+  "op": "auth",
+  "client_id": "my_app",
+  "api_key": "sk_your_api_key"
+}
+```
 
-## 📡 Protocolo WebSocket
+**Server → Client:**
+```json
+{
+  "op": "auth_success",
+  "client_id": "my_app",
+  "max_sessions": 2
+}
+```
 
-### Cliente → Servidor
+Or on failure:
+```json
+{
+  "op": "auth_failed",
+  "reason": "Invalid credentials"
+}
+```
 
+### 2. Session Management
+
+**Create Session:**
+```json
+// Client → Server
+{"op": "create_session"}
+
+// Server → Client
+{"op": "session_created", "session_id": "sess_abc123_def456"}
+```
+
+**Close Session:**
+```json
+// Client → Server
+{"op": "close_session", "session_id": "sess_abc123_def456"}
+
+// Server → Client
+{"op": "session_closed", "session_id": "sess_abc123_def456"}
+```
+
+### 3. Inference
+
+**Client → Server:**
 ```json
 {
   "op": "infer",
-  "prompt": "Explica la teoría de la relatividad",
+  "session_id": "sess_abc123_def456",
+  "prompt": "Explain quantum physics",
   "params": {
     "temp": 0.7,
     "max_tokens": 500
@@ -111,27 +210,31 @@ src/
 }
 ```
 
-### Servidor → Cliente (Streaming)
-
+**Server → Client (Streaming):**
 ```json
-{"op": "token", "content": " La"}
-{"op": "token", "content": " teoría"}
-{"op": "token", "content": " de"}
+{"op": "token", "session_id": "sess_...", "content": " Quantum"}
+{"op": "token", "session_id": "sess_...", "content": " physics"}
 ...
 {
   "op": "end",
+  "session_id": "sess_...",
   "stats": {
-    "ttft_ms": 45,
-    "total_ms": 1200,
-    "tokens": 87,
-    "tps": 72.5
+    "ttft_ms": 104,
+    "total_ms": 327,
+    "tokens": 35,
+    "tps": 107.03
   }
 }
 ```
 
-### Servidor → Cliente (Métricas en Tiempo Real)
+**Abort Generation:**
+```json
+{"op": "abort", "session_id": "sess_abc123_def456"}
+```
 
-Cada 1 segundo, el servidor envía automáticamente:
+### 4. Real-time Metrics (Automatic)
+
+Broadcast every 1 second to all connected clients:
 
 ```json
 {
@@ -147,9 +250,10 @@ Cada 1 segundo, el servidor envía automáticamente:
     "throttling": false
   },
   "inference": {
-    "state": "idle",
-    "last_tps": 45.2,
-    "last_ttft_ms": 120,
+    "active_generations": 2,
+    "total_sessions": 5,
+    "last_tps": 107.03,
+    "last_ttft_ms": 104,
     "total_tokens_generated": 1523
   }
 }
@@ -157,90 +261,265 @@ Cada 1 segundo, el servidor envía automáticamente:
 
 ---
 
-## 🎯 Modelos Recomendados (GTX 1060 3GB)
+## 🔐 Client Configuration
 
-| Modelo | Cuantización | Tamaño | Rendimiento |
-|--------|--------------|--------|-------------|
-| Llama-3.2-1B | q4_k_m | ~800MB | ✅ Excelente |
-| Llama-3.2-3B | q4_k_m | ~2.1GB | ✅ Muy bueno |
-| Mistral-7B | q4_k_m | ~4.8GB | ⚠️ Requiere split CPU/GPU |
-| Llama-3-8B | q4_k_m | ~5.2GB | ⚠️ Requiere split CPU/GPU |
+Edit `clients.json` to manage API clients:
 
-Descarga modelos desde: https://huggingface.co/models?library=gguf
+```json
+{
+  "clients": [
+    {
+      "client_id": "laptop_principal",
+      "api_key": "sk_laptop_abc123...",
+      "max_sessions": 2,
+      "priority": "high",
+      "description": "Main development laptop"
+    },
+    {
+      "client_id": "desktop_oficina",
+      "api_key": "sk_desktop_xyz789...",
+      "max_sessions": 4,
+      "priority": "normal",
+      "description": "Office desktop"
+    },
+    {
+      "client_id": "test_client",
+      "api_key": "sk_test_qwe456...",
+      "max_sessions": 1,
+      "priority": "low",
+      "description": "Testing and development"
+    }
+  ]
+}
+```
+
+**Fields:**
+- `client_id`: Unique identifier for the client
+- `api_key`: Secure API token (use long random strings)
+- `max_sessions`: Maximum concurrent sessions allowed
+- `priority`: Client priority (currently informational)
+- `description`: Human-readable description
 
 ---
 
 ## 🧪 Testing
 
-### Test con Cliente Python
+### Test Authentication
 
 ```bash
-# Instalar dependencias
-pip install websockets
+python3 test_auth.py
+```
 
-# Ejecutar cliente de prueba
+Verifies:
+- ✅ Valid credentials accepted
+- ✅ Invalid credentials rejected
+- ✅ Unauthenticated operations blocked
+
+### Test Multiple Sessions
+
+```bash
+python3 test_multi_session.py
+```
+
+Verifies:
+- ✅ Multiple sessions created
+- ✅ Concurrent inference on all sessions
+- ✅ True parallelism
+- ✅ Session cleanup
+
+### Basic Client Test
+
+```bash
 python3 test_client.py
 ```
 
-### Test Manual (wscat)
+Complete flow: auth → session → inference
+
+---
+
+## 🎯 Recommended Models (GTX 1060 3GB)
+
+| Model | Quantization | Size | Performance |
+|-------|--------------|------|-------------|
+| Llama-3.2-1B | q4_k_m | ~800MB | ✅ Excellent |
+| Llama-3.2-3B | q4_k_m | ~2.1GB | ✅ Very good |
+| Mistral-7B | q4_k_m | ~4.8GB | ⚠️ Requires CPU/GPU split |
+| Llama-3-8B | q4_k_m | ~5.2GB | ⚠️ Requires CPU/GPU split |
+
+Download models from: https://huggingface.co/models?library=gguf
+
+---
+
+## 🔧 Command-line Options
 
 ```bash
-# Instalar wscat
-npm install -g wscat
+./InferenceCore [OPTIONS]
 
-# Conectar
-wscat -c ws://localhost:3000
+Options:
+  --model <path>        Path to .gguf model file (required)
+  --port <port>         WebSocket server port (default: 3000)
+  --gpu-layers <N>      Number of layers to offload to GPU
+                        -1 = auto-detect (default)
+                        0 = CPU only
+                        >0 = specific layer count
+  --ctx-size <N>        Context size in tokens (default: 512)
+```
 
-# Enviar prompt
-{"op":"infer","prompt":"Hola, ¿cómo estás?"}
+**Examples:**
+
+```bash
+# Auto-detect GPU layers
+./InferenceCore --model model.gguf --port 3000
+
+# Force CPU-only
+./InferenceCore --model model.gguf --gpu-layers 0
+
+# Custom context size
+./InferenceCore --model model.gguf --ctx-size 2048
+
+# All options
+./InferenceCore --model model.gguf --port 8080 --gpu-layers 20 --ctx-size 1024
 ```
 
 ---
 
-## 📚 Documentación
+## 📊 Performance Metrics
 
-### Guías de Usuario
-- **[BUILD.md](BUILD.md)**: Guía completa de compilación e instalación
-- **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**: Plan de implementación original
+### Example: 3 Concurrent Sessions
 
-### Documentación Técnica (docs/)
-- **[docs/STATUS.md](docs/STATUS.md)**: Estado actual del proyecto y opciones disponibles
-- **[docs/ROADMAP.md](docs/ROADMAP.md)**: Hoja de ruta y análisis del proyecto
-- **[docs/ROADMAP_DETAILS.md](docs/ROADMAP_DETAILS.md)**: Explicación técnica detallada de decisiones
-- **[docs/PHASE2_WALKTHROUGH.md](docs/PHASE2_WALKTHROUGH.md)**: Walkthrough de implementación Fase 2
+**Test Setup:**
+- Model: Llama-3.2-3B q4_k_m
+- Hardware: GTX 1060 3GB
+- Sessions: 3 concurrent
+
+**Results:**
+- **Total time**: 9.55s for 3 concurrent inferences
+- **Tokens generated**: 1,112 total (505 + 99 + 508)
+- **TPS per session**: ~53 tokens/second
+- **TTFT**: 475ms (time to first token)
+- **Memory**: Model (2.1GB) + 3 contexts (~300MB) = ~2.4GB VRAM
 
 ---
 
-## 🐛 Solución de Problemas
+## 🐛 Troubleshooting
 
-### "Could not find nvcc"
+### "Failed to load client configuration"
+
+Ensure `clients.json` exists in the same directory as the executable:
+
 ```bash
-# Compilar sin CUDA
-cmake -DUSE_CUDA=OFF ..
+cp clients.json build/
+# OR
+./InferenceCore --model model.gguf  # Run from project root
+```
+
+### "Authentication failed"
+
+Check that `client_id` and `api_key` match exactly in `clients.json`.
+
+### "Session not found or access denied"
+
+- Ensure you created a session first with `create_session`
+- Verify the `session_id` is correct
+- Check that the session belongs to your authenticated client
+
+### "Failed to create session (limit reached)"
+
+Your client has reached `max_sessions` limit. Close existing sessions first:
+
+```json
+{"op": "close_session", "session_id": "sess_..."}
 ```
 
 ### "CUDA OOM"
-Usa modelos más pequeños o cuantizaciones más agresivas (q4_k_m en lugar de q5_k_m).
+
+- Use smaller models or more aggressive quantization (q4_k_m)
+- Reduce `--ctx-size`
+- Limit concurrent sessions per client in `clients.json`
 
 ### "NVML initialization failed"
+
 ```bash
-# Verificar drivers
+# Verify drivers
 nvidia-smi
 
-# Reinstalar si es necesario
+# Reinstall if needed
 sudo apt-get install --reinstall nvidia-driver-535
 ```
 
-Ver [BUILD.md](BUILD.md) para más detalles.
+---
+
+## 📚 Documentation
+
+- **[walkthrough.md](brain/.../walkthrough.md)**: Implementation walkthrough with architecture details
+- **[task.md](brain/.../task.md)**: Development task breakdown
+- **[implementation_plan.md](brain/.../implementation_plan.md)**: Original implementation plan
 
 ---
 
-## 📄 Licencia
+## 🔒 Security Best Practices
 
-Este proyecto utiliza `llama.cpp` (MIT License). Consulta el repositorio original para más detalles.
+1. **API Keys**: Use long, random strings (min 64 characters)
+2. **HTTPS**: Use a reverse proxy (nginx, caddy) with TLS in production
+3. **Firewall**: Restrict access to trusted IPs
+4. **Rotation**: Rotate API keys periodically
+5. **Monitoring**: Monitor for unusual session creation patterns
 
 ---
 
-## 🤝 Contribuciones
+## 🚀 Production Deployment
 
-Este es un proyecto personal optimizado para hardware específico (GTX 1060 3GB). Si tienes sugerencias o mejoras, abre un issue.
+### Using systemd
+
+Create `/etc/systemd/system/inference-center.service`:
+
+```ini
+[Unit]
+Description=InferenceCenter Server
+After=network.target
+
+[Service]
+Type=simple
+User=inference
+WorkingDirectory=/opt/inference-center
+ExecStart=/opt/inference-center/InferenceCore --model /models/llama-3.2-3b.gguf --port 3000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable inference-center
+sudo systemctl start inference-center
+sudo systemctl status inference-center
+```
+
+### Using Docker (Future)
+
+```dockerfile
+# Dockerfile coming soon
+```
+
+---
+
+## 📄 License
+
+This project uses `llama.cpp` (MIT License). See the original repository for details.
+
+---
+
+## 🤝 Contributing
+
+This is a personal project optimized for specific hardware (GTX 1060 3GB). Suggestions and improvements are welcome via issues or pull requests.
+
+---
+
+## 🙏 Acknowledgments
+
+- [llama.cpp](https://github.com/ggerganov/llama.cpp) - Core inference engine
+- [uWebSockets](https://github.com/uNetworking/uWebSockets) - WebSocket server
+- [nlohmann/json](https://github.com/nlohmann/json) - JSON library

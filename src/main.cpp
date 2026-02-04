@@ -112,7 +112,8 @@ int main(int argc, char** argv) {
     std::cout << "Model loaded successfully." << std::endl;
 
     // 2. Start WebSocket Server
-    Server::WsServer server(engine, monitor, port);
+    std::string clientConfigPath = "./clients.json";  // Default path
+    Server::WsServer server(engine, monitor, clientConfigPath, port);
     server.run();
     
     monitor.shutdown();

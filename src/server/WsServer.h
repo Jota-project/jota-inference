@@ -8,19 +8,24 @@
 #include <condition_variable>
 #include <iostream>
 #include <set>
+#include <vector>
 #include "Protocol.h"
+#include "ClientAuth.h"
 #include "../core/Engine.h"
+#include "../core/SessionManager.h"
 #include "../hardware/Monitor.h"
 
 namespace Server {
 
     struct PerSocketData {
-        // Can hold user session state
+        std::string client_id;
+        bool authenticated = false;
     };
 
     class WsServer {
     public:
-        WsServer(Core::Engine& engine, Hardware::Monitor& monitor, int port = 3000);
+        WsServer(Core::Engine& engine, Hardware::Monitor& monitor, 
+                 const std::string& clientConfigPath, int port = 3000);
         ~WsServer();
 
         // Start the server loop (blocking)
@@ -28,16 +33,18 @@ namespace Server {
 
     private:
         Core::Engine& engine;
+        Core::SessionManager* sessionManager = nullptr;
+        ClientAuth clientAuth;
         Hardware::Monitor& monitor;
         int port;
         
         // uWebSockets LOOP
-        // We need to access the loop to defer tasks from the worker thread
         struct uWS::Loop* loop = nullptr;
         
         // Thread Safe Queue for Inference Tasks
         struct Task {
             uWS::WebSocket<false, true, PerSocketData>* ws;
+            std::string session_id;
             InferenceParams params;
         };
         
@@ -46,26 +53,22 @@ namespace Server {
         std::condition_variable queueCv;
         
         std::atomic<bool> running{true};
-        std::thread workerThread;
-        std::thread metricsThread;  // New: Metrics broadcasting thread
+        std::vector<std::thread> workerThreads;  // Thread pool
+        std::thread metricsThread;
 
-        // Current active generation (to support ABORT)
-        std::atomic<bool> abortCurrent{false};
-        uWS::WebSocket<false, true, PerSocketData>* currentWs = nullptr;
-        
         // Track all connected clients for metrics broadcasting
         std::set<uWS::WebSocket<false, true, PerSocketData>*> connectedClients;
         std::mutex clientsMutex;
         
         // Metrics state
-        std::atomic<bool> isGenerating{false};
+        std::atomic<int> activeGenerations{0};
         Core::Metrics lastMetrics;
         std::mutex metricsMutex;
 
         void workerLoop();
         void processInference(Task& task);
-        void metricsLoop();  // New: Periodic metrics broadcast
-        void broadcastMetrics();  // New: Send metrics to all clients
+        void metricsLoop();
+        void broadcastMetrics();
     };
 
 }

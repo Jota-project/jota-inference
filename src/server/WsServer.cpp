@@ -36,24 +36,47 @@ namespace {
 
 namespace Server {
 
-    WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor, int port) 
+    WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
+                       const std::string& clientConfigPath, int port) 
         : engine(engine), monitor(monitor), port(port) {
         
-        // Start worker thread
-        workerThread = std::thread(&WsServer::workerLoop, this);
+        // Load client authentication config
+        if (!clientAuth.loadConfig(clientConfigPath)) {
+            throw std::runtime_error("Failed to load client configuration from: " + clientConfigPath);
+        }
+
+        // Create SessionManager
+        sessionManager = new Core::SessionManager(engine.getModel(), engine.getCtxSize());
+        sessionManager->setClientAuth(&clientAuth);
+
+        // Start worker threads (thread pool for parallel processing)
+        int numWorkers = 4;
+        for (int i = 0; i < numWorkers; i++) {
+            workerThreads.emplace_back(&WsServer::workerLoop, this);
+        }
         
         // Start metrics broadcasting thread
         metricsThread = std::thread(&WsServer::metricsLoop, this);
+
+        std::cout << "WsServer initialized with " << numWorkers << " worker threads" << std::endl;
     }
 
     WsServer::~WsServer() {
         running = false;
         queueCv.notify_all();
-        if (workerThread.joinable()) {
-            workerThread.join();
+        
+        for (auto& thread : workerThreads) {
+            if (thread.joinable()) {
+                thread.join();
+            }
         }
+        
         if (metricsThread.joinable()) {
             metricsThread.join();
+        }
+
+        if (sessionManager) {
+            delete sessionManager;
         }
     }
 
@@ -64,7 +87,7 @@ namespace Server {
         uWS::App()
             .ws<PerSocketData>("/*", {
                 .open = [this](auto* ws) {
-                    std::cout << "Client connected!" << std::endl;
+                    std::cout << "Client connected (unauthenticated)" << std::endl;
                     
                     // Add to connected clients
                     {
@@ -74,46 +97,181 @@ namespace Server {
                     
                     json hello = {
                         {"op", Op::HELLO},
-                        {"status", "ready"}
+                        {"status", "ready"},
+                        {"message", "Please authenticate with AUTH operation"}
                     };
                     ws->send(hello.dump(), uWS::OpCode::TEXT);
                 },
-                .message = [this](auto* ws, std::string_view message, uWS::OpCode opCode) {
+                .message = [this](auto* ws, std::string_view message, uWS::OpCode) {
                     try {
                         auto j = json::parse(message);
                         if (!j.contains("op")) return;
 
                         std::string op = j["op"];
+                        auto* data = ws->getUserData();
                         
+                        // AUTH operation - always allowed
+                        if (op == Op::AUTH) {
+                            if (!j.contains("client_id") || !j.contains("api_key")) {
+                                json response = {
+                                    {"op", Op::AUTH_FAILED},
+                                    {"reason", "Missing client_id or api_key"}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                                return;
+                            }
+
+                            std::string client_id = j["client_id"];
+                            std::string api_key = j["api_key"];
+
+                            if (clientAuth.authenticate(client_id, api_key)) {
+                                data->client_id = client_id;
+                                data->authenticated = true;
+
+                                auto config = clientAuth.getClientConfig(client_id);
+                                json response = {
+                                    {"op", Op::AUTH_SUCCESS},
+                                    {"client_id", client_id},
+                                    {"max_sessions", config.max_sessions}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                                std::cout << "Client authenticated: " << client_id << std::endl;
+                            } else {
+                                json response = {
+                                    {"op", Op::AUTH_FAILED},
+                                    {"reason", "Invalid credentials"}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                                std::cout << "Authentication failed for: " << client_id << std::endl;
+                            }
+                            return;
+                        }
+
+                        // All other operations require authentication
+                        if (!data->authenticated) {
+                            json response = {
+                                {"op", Op::ERROR},
+                                {"message", "Not authenticated. Please send AUTH operation first."}
+                            };
+                            ws->send(response.dump(), uWS::OpCode::TEXT);
+                            return;
+                        }
+
+                        // CREATE_SESSION
+                        if (op == Op::CREATE_SESSION) {
+                            std::string session_id = sessionManager->createSession(data->client_id);
+                            
+                            if (session_id.empty()) {
+                                json response = {
+                                    {"op", Op::SESSION_ERROR},
+                                    {"message", "Failed to create session (limit reached or error)"}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                            } else {
+                                json response = {
+                                    {"op", Op::SESSION_CREATED},
+                                    {"session_id", session_id}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                            }
+                            return;
+                        }
+
+                        // CLOSE_SESSION
+                        if (op == Op::CLOSE_SESSION) {
+                            if (!j.contains("session_id")) {
+                                json response = {
+                                    {"op", Op::SESSION_ERROR},
+                                    {"message", "Missing session_id"}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                                return;
+                            }
+
+                            std::string session_id = j["session_id"];
+                            
+                            // Verify session belongs to this client
+                            auto* session = sessionManager->getSession(session_id);
+                            if (session && session->getClientId() == data->client_id) {
+                                sessionManager->closeSession(session_id);
+                                json response = {
+                                    {"op", Op::SESSION_CLOSED},
+                                    {"session_id", session_id}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                            } else {
+                                json response = {
+                                    {"op", Op::SESSION_ERROR},
+                                    {"message", "Session not found or access denied"}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                            }
+                            return;
+                        }
+
+                        // INFER
                         if (op == Op::INFER) {
                             InferenceParams params = parseInfer(j);
                             
-                            std::lock_guard<std::mutex> lock(queueMutex);
-                            taskQueue.push({ws, params});
-                            queueCv.notify_one();
-                        }
-                        else if (op == Op::ABORT) {
-                            if (currentWs == ws) {
-                                abortCurrent = true;
+                            if (params.session_id.empty()) {
+                                json response = {
+                                    {"op", Op::ERROR},
+                                    {"message", "Missing session_id in INFER request"}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                                return;
                             }
+
+                            // Verify session exists and belongs to this client
+                            auto* session = sessionManager->getSession(params.session_id);
+                            if (!session || session->getClientId() != data->client_id) {
+                                json response = {
+                                    {"op", Op::ERROR},
+                                    {"message", "Session not found or access denied"}
+                                };
+                                ws->send(response.dump(), uWS::OpCode::TEXT);
+                                return;
+                            }
+
+                            // Queue the inference task
+                            std::lock_guard<std::mutex> lock(queueMutex);
+                            taskQueue.push({ws, params.session_id, params});
+                            queueCv.notify_one();
+                            return;
+                        }
+
+                        // ABORT
+                        if (op == Op::ABORT) {
+                            if (!j.contains("session_id")) return;
+                            
+                            std::string session_id = j["session_id"];
+                            auto* session = sessionManager->getSession(session_id);
+                            if (session && session->getClientId() == data->client_id) {
+                                session->abort();
+                            }
+                            return;
                         }
 
                     } catch (const std::exception& e) {
                         std::cerr << "JSON Error: " << e.what() << std::endl;
                     }
                 },
-                .close = [this](auto* ws, int code, std::string_view message) {
-                    std::cout << "Client disconnected" << std::endl;
+                .close = [this](auto* ws, int, std::string_view) {
+                    auto* data = ws->getUserData();
+                    
+                    if (data->authenticated) {
+                        std::cout << "Client disconnected: " << data->client_id << std::endl;
+                        
+                        // Close all sessions for this client
+                        sessionManager->closeClientSessions(data->client_id);
+                    } else {
+                        std::cout << "Unauthenticated client disconnected" << std::endl;
+                    }
                     
                     // Remove from connected clients
                     {
                         std::lock_guard<std::mutex> lock(clientsMutex);
                         connectedClients.erase(ws);
-                    }
-                    
-                    if (currentWs == ws) {
-                        abortCurrent = true;
-                        currentWs = nullptr;
                     }
                 }
             })
@@ -145,29 +303,29 @@ namespace Server {
     }
 
     void WsServer::processInference(Task& task) {
-        currentWs = task.ws;
-        abortCurrent = false;
-        isGenerating = true;
+        // Get the session
+        auto* session = sessionManager->getSession(task.session_id);
+        if (!session) {
+            std::cerr << "Session not found: " << task.session_id << std::endl;
+            return;
+        }
 
-        auto metrics = engine.generate(task.params.prompt, [this, &task](const std::string& token) {
-            // Check abort
-            if (abortCurrent) return false;
+        activeGenerations++;
 
+        auto metrics = session->generate(task.params.prompt, [this, &task](const std::string& token) {
             // Send to main thread
             std::string tokenCopy = token;
             
             loop->defer([this, task, tokenCopy]() {
-                // Verify if connection is still alive/active
-                if (currentWs == task.ws && currentWs != nullptr) {
-                     // Sanitize UTF-8 to prevent JSON serialization errors
-                     std::string validToken = sanitizeUtf8(tokenCopy);
-                     
-                     json msg = {
-                        {"op", Op::TOKEN},
-                        {"content", validToken}
-                     };
-                     currentWs->send(msg.dump(), uWS::OpCode::TEXT);
-                }
+                // Sanitize UTF-8 to prevent JSON serialization errors
+                std::string validToken = sanitizeUtf8(tokenCopy);
+                
+                json msg = {
+                    {"op", Op::TOKEN},
+                    {"session_id", task.session_id},
+                    {"content", validToken}
+                };
+                task.ws->send(msg.dump(), uWS::OpCode::TEXT);
             });
             
             return true;
@@ -181,24 +339,20 @@ namespace Server {
 
         // Finished
         loop->defer([this, task, metrics]() {
-            if (currentWs == task.ws && currentWs != nullptr) {
-                 json msg = {
-                    {"op", Op::END},
-                    {"stats", {
-                        {"ttft_ms", metrics.ttft_ms},
-                        {"total_ms", metrics.total_time_ms},
-                        {"tokens", metrics.tokens_generated},
-                        {"tps", metrics.tps}
-                    }}
-                 };
-                 currentWs->send(msg.dump(), uWS::OpCode::TEXT);
-                 
-                 // Reset current
-                 currentWs = nullptr;
-            }
+            json msg = {
+                {"op", Op::END},
+                {"session_id", task.session_id},
+                {"stats", {
+                    {"ttft_ms", metrics.ttft_ms},
+                    {"total_ms", metrics.total_time_ms},
+                    {"tokens", metrics.tokens_generated},
+                    {"tps", metrics.tps}
+                }}
+            };
+            task.ws->send(msg.dump(), uWS::OpCode::TEXT);
         });
         
-        isGenerating = false;
+        activeGenerations--;
     }
     
     void WsServer::metricsLoop() {
@@ -231,12 +385,13 @@ namespace Server {
                 {"vram_total_mb", gpuStats.memoryTotal / (1024*1024)},
                 {"vram_used_mb", gpuStats.memoryUsed / (1024*1024)},
                 {"vram_free_mb", gpuStats.memoryFree / (1024*1024)},
-                {"power_watts", gpuStats.powerUsage / 1000}, // Convert mW to W
+                {"power_watts", gpuStats.powerUsage / 1000},
                 {"fan_percent", gpuStats.fanSpeed},
                 {"throttling", gpuStats.throttle}
             }},
             {"inference", {
-                {"state", isGenerating.load() ? "generating" : "idle"},
+                {"active_generations", activeGenerations.load()},
+                {"total_sessions", sessionManager->getTotalSessionCount()},
                 {"last_tps", currentMetrics.tps},
                 {"last_ttft_ms", currentMetrics.ttft_ms},
                 {"total_tokens_generated", currentMetrics.tokens_generated}

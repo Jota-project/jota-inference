@@ -55,7 +55,7 @@ FetchContent_Declare(
 # 2.1 Manually configure uSockets
 FetchContent_GetProperties(usockets)
 if(NOT usockets_POPULATED)
-  FetchContent_Populate(usockets)
+  FetchContent_MakeAvailable(usockets)
 endif()
 
 # Create uSockets library from source
@@ -71,7 +71,7 @@ target_include_directories(uSockets PUBLIC "${usockets_SOURCE_DIR}/src")
 # 2.2 Configure uWebSockets
 FetchContent_GetProperties(uwebsockets)
 if(NOT uwebsockets_POPULATED)
-  FetchContent_Populate(uwebsockets)
+  FetchContent_MakeAvailable(uwebsockets)
 endif()
 # uWebSockets is header only, just needs the includes (handled below)
 
@@ -81,9 +81,13 @@ endif()
 add_executable(${PROJECT_NAME} 
     src/main.cpp 
     src/core/Engine.cpp
+    src/core/Session.cpp
+    src/core/SessionManager.cpp
     src/server/Protocol.h
     src/server/WsServer.h
     src/server/WsServer.cpp
+    src/server/ClientAuth.h
+    src/server/ClientAuth.cpp
     src/hardware/Monitor.h
     src/hardware/Monitor.cpp
 )

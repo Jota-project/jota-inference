@@ -33,27 +33,21 @@ namespace Core {
         // Initialize the engine with the specific model
         bool loadModel(const EngineConfig& config);
 
-        // Run inference
-        // prompt: The input text
-        // callback: Function called for each generated token
-        // Returns final metrics
-        Metrics generate(const std::string& prompt, TokenCallback callback);
-
         // Check internal status
         bool isLoaded() const;
 
         // Get system info
         std::string getSystemInfo() const;
 
+        // Get the loaded model (for SessionManager to create contexts)
+        struct llama_model* getModel() { return model; }
+        
+        // Get context size from config
+        int getCtxSize() const { return ctx_size_; }
+
     private:
         struct llama_model* model = nullptr;
-        struct llama_context* ctx = nullptr;
-        
-        // Helper to tokenize input
-        std::vector<llama_token> tokenize(const std::string & text, bool add_bos);
-        
-        // Helper to convert token to string
-        std::string tokenToPiece(llama_token token);
+        int ctx_size_ = 512;
     };
 
 }
