@@ -1,78 +1,70 @@
 #pragma once
 
 #include <App.h> // uWebSockets
-#include <mutex>
-#include <thread>
-#include <queue>
-#include <atomic>
-#include <condition_variable>
-#include <iostream>
+#include <memory>
 #include <set>
-#include <vector>
+#include <mutex>
 #include "Protocol.h"
 #include "ClientAuth.h"
+#include "RequestContext.h"
+#include "MessageDispatcher.h"
+#include "services/InferenceService.h"
+#include "services/MetricsService.h"
+#include "handlers/AuthHandler.h"
+#include "handlers/SessionHandler.h"
+#include "handlers/InferenceHandler.h"
+#include "handlers/MetricsHandler.h"
 #include "../core/Engine.h"
 #include "../core/SessionManager.h"
 #include "../hardware/Monitor.h"
 
 namespace Server {
 
-    struct PerSocketData {
-        std::string client_id;
-        bool authenticated = false;
-    };
+/**
+ * WsServer - Minimal WebSocket server (network layer only)
+ * 
+ * Responsibilities:
+ * - uWebSockets lifecycle (open, message, close)
+ * - Connection tracking
+ * - Delegate message handling to MessageDispatcher
+ * - Coordinate services (Inference, Metrics)
+ */
+class WsServer {
+public:
+    WsServer(Core::Engine& engine, Hardware::Monitor& monitor, 
+             const std::string& clientConfigPath, int port = 3000);
+    ~WsServer();
 
-    class WsServer {
-    public:
-        WsServer(Core::Engine& engine, Hardware::Monitor& monitor, 
-                 const std::string& clientConfigPath, int port = 3000);
-        ~WsServer();
+    // Start the server loop (blocking)
+    void run();
 
-        // Start the server loop (blocking)
-        void run();
+private:
+    // Core dependencies
+    Core::Engine& engine_;
+    Core::SessionManager* sessionManager_ = nullptr;
+    ClientAuth clientAuth_;
+    Hardware::Monitor& monitor_;
+    int port_;
+    
+    // uWebSockets loop
+    uWS::Loop* loop_ = nullptr;
+    
+    // Services
+    std::unique_ptr<InferenceService> inferenceService_;
+    std::unique_ptr<MetricsService> metricsService_;
+    
+    // Handlers (shared_ptr for MessageDispatcher sharing)
+    std::shared_ptr<AuthHandler> authHandler_;
+    std::shared_ptr<SessionHandler> sessionHandler_;
+    std::shared_ptr<InferenceHandler> inferenceHandler_;
+    std::shared_ptr<MetricsHandler> metricsHandler_;
+    
+    // Message dispatcher
+    std::unique_ptr<MessageDispatcher> dispatcher_;
+    
+    // Connection tracking
+    std::set<uWS::WebSocket<false, true, PerSocketData>*> connectedClients_;
+    std::mutex clientsMutex_;
+};
 
-    private:
-        Core::Engine& engine;
-        Core::SessionManager* sessionManager = nullptr;
-        ClientAuth clientAuth;
-        Hardware::Monitor& monitor;
-        int port;
-        
-        // uWebSockets LOOP
-        struct uWS::Loop* loop = nullptr;
-        
-        // Thread Safe Queue for Inference Tasks
-        struct Task {
-            uWS::WebSocket<false, true, PerSocketData>* ws;
-            std::string session_id;
-            InferenceParams params;
-        };
-        
-        std::queue<Task> taskQueue;
-        std::mutex queueMutex;
-        std::condition_variable queueCv;
-        
-        std::atomic<bool> running{true};
-        std::vector<std::thread> workerThreads;  // Thread pool
-        std::thread metricsThread;
-
-        // Track all connected clients for metrics broadcasting
-        std::set<uWS::WebSocket<false, true, PerSocketData>*> connectedClients;
-        std::mutex clientsMutex;
-        
-        // Track clients subscribed to metrics
-        std::set<uWS::WebSocket<false, true, PerSocketData>*> metricsSubscribers;
-        std::mutex metricsSubscribersMutex;
-        
-        // Metrics state
-        std::atomic<int> activeGenerations{0};
-        Core::Metrics lastMetrics;
-        std::mutex metricsMutex;
-
-        void workerLoop();
-        void processInference(Task& task);
-        void metricsLoop();
-        void broadcastMetrics();
-    };
-
-}
+} // namespace Server

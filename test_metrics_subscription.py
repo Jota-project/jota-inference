@@ -5,7 +5,7 @@ import sys
 
 async def test_metrics_subscription():
     """Test that metrics are only sent when subscribed."""
-    uri = "ws://localhost:8001/"
+    uri = "ws://green-house.local/api/inference"
     print(f"Connecting to {uri} ...")
     
     try:

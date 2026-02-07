@@ -80,14 +80,29 @@ endif()
 # 3. Tu ejecutable
 add_executable(${PROJECT_NAME} 
     src/main.cpp 
+    # Core
     src/core/Engine.cpp
     src/core/Session.cpp
     src/core/SessionManager.cpp
+    # Server - Core
     src/server/Protocol.h
     src/server/WsServer.h
     src/server/WsServer.cpp
     src/server/ClientAuth.h
     src/server/ClientAuth.cpp
+    src/server/RequestContext.h
+    src/server/MessageDispatcher.h
+    # Server - Services
+    src/server/services/InferenceService.h
+    src/server/services/InferenceService.cpp
+    src/server/services/MetricsService.h
+    src/server/services/MetricsService.cpp
+    # Server - Handlers (header-only)
+    src/server/handlers/AuthHandler.h
+    src/server/handlers/SessionHandler.h
+    src/server/handlers/InferenceHandler.h
+    src/server/handlers/MetricsHandler.h
+    # Hardware
     src/hardware/Monitor.h
     src/hardware/Monitor.cpp
 )
