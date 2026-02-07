@@ -18,6 +18,8 @@ namespace Core {
         // Create context for this session
         auto cparams = llama_context_default_params();
         cparams.n_ctx = ctx_size;
+        cparams.n_batch = 512;   // Logical batch size
+        cparams.n_ubatch = 512;  // Physical batch size
         
         ctx_ = llama_init_from_model(model_, cparams);
         if (!ctx_) {

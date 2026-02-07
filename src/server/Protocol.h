@@ -19,6 +19,10 @@ namespace Server {
         constexpr const char* INFER = "infer";
         constexpr const char* ABORT = "abort";
         
+        // Metrics subscription
+        constexpr const char* SUBSCRIBE_METRICS = "subscribe_metrics";
+        constexpr const char* UNSUBSCRIBE_METRICS = "unsubscribe_metrics";
+        
         // Server -> Client
         constexpr const char* HELLO = "hello";
         constexpr const char* AUTH_SUCCESS = "auth_success";
@@ -30,6 +34,8 @@ namespace Server {
         constexpr const char* END   = "end";
         constexpr const char* ERROR = "error";
         constexpr const char* METRICS = "metrics";  // Real-time system metrics
+        constexpr const char* METRICS_SUBSCRIBED = "metrics_subscribed";
+        constexpr const char* METRICS_UNSUBSCRIBED = "metrics_unsubscribed";
     }
 
     struct InferenceParams {

@@ -60,6 +60,10 @@ namespace Server {
         std::set<uWS::WebSocket<false, true, PerSocketData>*> connectedClients;
         std::mutex clientsMutex;
         
+        // Track clients subscribed to metrics
+        std::set<uWS::WebSocket<false, true, PerSocketData>*> metricsSubscribers;
+        std::mutex metricsSubscribersMutex;
+        
         // Metrics state
         std::atomic<int> activeGenerations{0};
         Core::Metrics lastMetrics;

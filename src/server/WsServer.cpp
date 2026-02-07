@@ -240,6 +240,38 @@ namespace Server {
                             return;
                         }
 
+                        // SUBSCRIBE_METRICS
+                        if (op == Op::SUBSCRIBE_METRICS) {
+                            {
+                                std::lock_guard<std::mutex> lock(metricsSubscribersMutex);
+                                metricsSubscribers.insert(ws);
+                            }
+                            
+                            json response = {
+                                {"op", Op::METRICS_SUBSCRIBED},
+                                {"message", "Subscribed to metrics updates"}
+                            };
+                            ws->send(response.dump(), uWS::OpCode::TEXT);
+                            std::cout << "Client " << data->client_id << " subscribed to metrics" << std::endl;
+                            return;
+                        }
+
+                        // UNSUBSCRIBE_METRICS
+                        if (op == Op::UNSUBSCRIBE_METRICS) {
+                            {
+                                std::lock_guard<std::mutex> lock(metricsSubscribersMutex);
+                                metricsSubscribers.erase(ws);
+                            }
+                            
+                            json response = {
+                                {"op", Op::METRICS_UNSUBSCRIBED},
+                                {"message", "Unsubscribed from metrics updates"}
+                            };
+                            ws->send(response.dump(), uWS::OpCode::TEXT);
+                            std::cout << "Client " << data->client_id << " unsubscribed from metrics" << std::endl;
+                            return;
+                        }
+
                         // ABORT
                         if (op == Op::ABORT) {
                             if (!j.contains("session_id")) return;
@@ -272,6 +304,12 @@ namespace Server {
                     {
                         std::lock_guard<std::mutex> lock(clientsMutex);
                         connectedClients.erase(ws);
+                    }
+                    
+                    // Remove from metrics subscribers
+                    {
+                        std::lock_guard<std::mutex> lock(metricsSubscribersMutex);
+                        metricsSubscribers.erase(ws);
                     }
                 }
             })
@@ -400,10 +438,10 @@ namespace Server {
         
         std::string metricsStr = metricsJson.dump();
         
-        // Broadcast to all connected clients
+        // Broadcast to subscribed clients only
         loop->defer([this, metricsStr]() {
-            std::lock_guard<std::mutex> lock(clientsMutex);
-            for (auto* ws : connectedClients) {
+            std::lock_guard<std::mutex> lock(metricsSubscribersMutex);
+            for (auto* ws : metricsSubscribers) {
                 ws->send(metricsStr, uWS::OpCode::TEXT);
             }
         });

@@ -232,9 +232,27 @@ Or on failure:
 {"op": "abort", "session_id": "sess_abc123_def456"}
 ```
 
-### 4. Real-time Metrics (Automatic)
+### 4. Real-time Metrics (Opt-in)
 
-Broadcast every 1 second to all connected clients:
+**Subscribe to Metrics:**
+```json
+// Client → Server
+{"op": "subscribe_metrics"}
+
+// Server → Client
+{"op": "metrics_subscribed", "message": "Subscribed to metrics updates"}
+```
+
+**Unsubscribe from Metrics:**
+```json
+// Client → Server
+{"op": "unsubscribe_metrics"}
+
+// Server → Client
+{"op": "metrics_unsubscribed", "message": "Unsubscribed from metrics updates"}
+```
+
+**Metrics Broadcast** (sent every 1 second to subscribed clients):
 
 ```json
 {
