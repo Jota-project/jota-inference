@@ -28,14 +28,20 @@ namespace Server {
 
             clients_.clear();
 
-            for (auto& [client_id, client_data] : config["clients"].items()) {
+            for (const auto& client_data : config["clients"]) {
                 ClientConfig cfg;
-                cfg.client_id = client_id;
+                
+                if (client_data.contains("client_id")) {
+                    cfg.client_id = client_data["client_id"].get<std::string>();
+                } else {
+                     std::cerr << "Client missing client_id" << std::endl;
+                     continue;
+                }
                 
                 if (client_data.contains("api_key")) {
                     cfg.api_key = client_data["api_key"].get<std::string>();
                 } else {
-                    std::cerr << "Client " << client_id << " missing api_key" << std::endl;
+                    std::cerr << "Client " << cfg.client_id << " missing api_key" << std::endl;
                     continue;
                 }
 
@@ -51,8 +57,8 @@ namespace Server {
                     cfg.description = client_data["description"].get<std::string>();
                 }
 
-                clients_[client_id] = cfg;
-                std::cout << "Loaded client: " << client_id 
+                clients_[cfg.client_id] = cfg;
+                std::cout << "Loaded client: " << cfg.client_id 
                           << " (max_sessions: " << cfg.max_sessions << ")" << std::endl;
             }
 

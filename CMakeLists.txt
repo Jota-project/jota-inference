@@ -137,3 +137,22 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 if (NOT MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -O3 -march=native)
 endif()
+
+# --- TESTS ---
+enable_testing()
+
+add_executable(run_tests
+    src/server/ClientAuth.cpp
+    tests/test_protocol.cpp
+    tests/test_auth.cpp
+    tests/catch_amalgamated.cpp
+)
+
+target_include_directories(run_tests PRIVATE 
+    src 
+    tests
+)
+
+target_link_libraries(run_tests PRIVATE
+    nlohmann_json::nlohmann_json
+)

@@ -71,7 +71,7 @@ public:
         }
         
         // Create callbacks that use RequestContext
-        auto onToken = [&ctx, session_id](const std::string& sid, const std::string& token) {
+        auto onToken = [ctx, session_id](const std::string& sid, const std::string& token) {
             json msg = {
                 {"op", Op::TOKEN},
                 {"session_id", sid},
@@ -80,7 +80,7 @@ public:
             ctx.send(msg);
         };
         
-        auto onComplete = [&ctx, session_id](const std::string& sid, const Core::Metrics& metrics) {
+        auto onComplete = [ctx, session_id](const std::string& sid, const Core::Metrics& metrics) {
             json msg = {
                 {"op", Op::END},
                 {"session_id", sid},

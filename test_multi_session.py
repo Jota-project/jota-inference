@@ -2,14 +2,17 @@ import asyncio
 import websockets
 import json
 import time
+import os
 
 async def test_multi_session():
     """Test multiple concurrent sessions"""
-    uri = "ws://localhost/api/inference/"
+    uri = os.environ.get("TEST_URI", "ws://localhost/api/inference/")
     
     print("=== Testing Multiple Concurrent Sessions ===\n")
+    print(f"Connecting to: {uri}")
     
-    async with websockets.connect(uri) as websocket:
+    # Disable ping to prevent timeout during heavy loads
+    async with websockets.connect(uri, ping_interval=None, close_timeout=120) as websocket:
         # 1. Authenticate
         await websocket.recv()  # Hello
         

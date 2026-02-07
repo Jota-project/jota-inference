@@ -34,10 +34,13 @@ public:
      * Send JSON message to client (thread-safe via loop->defer)
      * Can be called from any thread
      */
-    void send(const json& message) {
+    void send(const json& message) const {
         std::string msg = message.dump();
-        loop_->defer([this, msg]() {
-            ws_->send(msg, uWS::OpCode::TEXT);
+        auto* ws = ws_;
+        auto* loop = loop_;
+
+        loop->defer([ws, msg]() {
+            ws->send(msg, uWS::OpCode::TEXT);
         });
     }
     
@@ -45,7 +48,7 @@ public:
      * Send raw string message to client (thread-safe via loop->defer)
      * Can be called from any thread
      */
-    void sendRaw(const std::string& message) {
+    void sendRaw(const std::string& message) const {
         loop_->defer([this, message]() {
             ws_->send(message, uWS::OpCode::TEXT);
         });

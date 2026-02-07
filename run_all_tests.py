@@ -9,7 +9,7 @@ import json
 # Configuration
 SERVER_BIN = "./build/InferenceCore"
 MODEL_PATH = "models/LFM/LFM2.5-1.2B-Thinking-Q4_K_M.gguf"
-PORT = 8081  # Use a different port to avoid conflicts with running dev instances
+PORT = 8001  # Use a different port to avoid conflicts with running dev instances
 HOST = "localhost"
 URI = f"ws://{HOST}:{PORT}"
 
@@ -33,6 +33,7 @@ def check_server_ready(host, port, timeout=30):
     return False
 
 def run_tests():
+    global MODEL_PATH
     print(f"🚀 Starting InferenceCenter Test Runner...")
     
     # 1. Start the server
@@ -51,8 +52,15 @@ def run_tests():
         # Try to find any .gguf file in models/
         print("   Searching for other models...")
         found_model = False
-        global MODEL_PATH
         for root, dirs, files in os.walk("models"):
+            for file in files:
+                if file.endswith(".gguf"):
+                    MODEL_PATH_ALT = os.path.join(root, file)
+                    print(f"   Using found model: {MODEL_PATH_ALT}")
+                    MODEL_PATH = MODEL_PATH_ALT
+                    found_model = True
+                    break
+            if found_model: break
         
         if not found_model:
             sys.exit(1)
@@ -132,12 +140,15 @@ def run_tests():
                 
             print(f"👉 Running {test_file}...")
             try:
-                # We need to make sure the test file uses the env var.
-                # If they don't, this will fail or test the WRONG server (e.g. prod).
-                # I will add a patch step in a moment.
-                
+                # Use venv python if available
+                python_bin = sys.executable
+                if os.path.exists("venv/bin/python"):
+                    python_bin = "venv/bin/python"
+                elif os.path.exists(".venv/bin/python"):
+                     python_bin = ".venv/bin/python"
+
                 result = subprocess.run(
-                    [sys.executable, test_file],
+                    [python_bin, test_file],
                     env=my_env,
                     capture_output=True,
                     text=True,

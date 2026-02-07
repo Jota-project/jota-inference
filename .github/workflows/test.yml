@@ -1,0 +1,71 @@
+name: C++ & Python Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential zlib1g-dev python3-venv
+
+    - name: Create Virtual Environment
+      run: |
+        python3 -m venv venv
+        source venv/bin/activate
+        pip install websockets pytest
+
+    - name: Download Catch2 (Manual Step for CI because repo doesn't track it?)
+      # Assuming 'tests/catch_amalgamated.*' are checked in OR we download them.
+      # Best practice: Download them if missing.
+      run: |
+        mkdir -p tests
+        if [ ! -f tests/catch_amalgamated.hpp ]; then
+            wget https://github.com/catchorg/Catch2/releases/download/v3.4.0/catch_amalgamated.hpp -O tests/catch_amalgamated.hpp
+        fi
+        if [ ! -f tests/catch_amalgamated.cpp ]; then
+            wget https://github.com/catchorg/Catch2/releases/download/v3.4.0/catch_amalgamated.cpp -O tests/catch_amalgamated.cpp
+        fi
+
+    - name: Configure CMake (CPU Only)
+      run: |
+        mkdir build
+        cd build
+        cmake -DUSE_CUDA=OFF ..
+
+    - name: Build
+      run: |
+        cd build
+        make -j$(nproc) run_tests
+
+    - name: Run Unit Tests (C++)
+      run: |
+        cd build
+        ./run_tests
+
+    - name: Run Integration Tests (Python)
+      # Note: We need a model for this. In CI, we might skip this or download a small dummy model.
+      # For now, we will try to run them but they might fail if no model is present.
+      # We can mock the model loading or use a tiny model.
+      # If no model is found, run_all_tests.py usually exits.
+      # Let's assume for CI we SKIP the full integration tests unless a model DL is added.
+      # But we can verify syntax/imports.
+      run: |
+        source venv/bin/activate
+        # Check if we can run unit tests or if we need to skip server tests specific to models
+        # For now, let's just print a message that we skipping heavy integration tests in CI without a model
+        echo "Skipping full integration tests (no model in CI)"

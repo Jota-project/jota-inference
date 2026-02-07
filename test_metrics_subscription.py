@@ -2,14 +2,16 @@ import asyncio
 import websockets
 import json
 import sys
+import os
 
 async def test_metrics_subscription():
     """Test that metrics are only sent when subscribed."""
-    uri = "ws://localhost/api/inference/"
+    uri = os.environ.get("TEST_URI", "ws://localhost/api/inference/")
     print(f"Connecting to {uri} ...")
     
     try:
-        async with websockets.connect(uri) as websocket:
+        # Disable ping to prevent timeout during heavy loads
+        async with websockets.connect(uri, ping_interval=None, close_timeout=120) as websocket:
             print("✅ Connected")
             
             # 1. Wait for Hello

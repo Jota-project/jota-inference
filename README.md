@@ -322,36 +322,13 @@ Edit `clients.json` to manage API clients:
 
 ## 🧪 Testing
 
-### Test Authentication
+The project includes a comprehensive test suite (Unit + Integration).
 
-```bash
-python3 test_auth.py
-```
+For detailed documentation, see **[TESTING.md](TESTING.md)**.
 
-Verifies:
-- ✅ Valid credentials accepted
-- ✅ Invalid credentials rejected
-- ✅ Unauthenticated operations blocked
-
-### Test Multiple Sessions
-
-```bash
-python3 test_multi_session.py
-```
-
-Verifies:
-- ✅ Multiple sessions created
-- ✅ Concurrent inference on all sessions
-- ✅ True parallelism
-- ✅ Session cleanup
-
-### Basic Client Test
-
-```bash
-python3 test_client.py
-```
-
-Complete flow: auth → session → inference
+### Quick Verification
+-   **Unit Tests**: Validate core C++ logic (Protocol, Auth).
+-   **Integration Tests**: Validate server cycles (Auth -> Session -> Inference).
 
 ---
 

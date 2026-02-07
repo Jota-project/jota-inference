@@ -6,7 +6,8 @@ import os
 async def test():
     uri = os.environ.get("TEST_URI", "ws://localhost/api/inference/")
     print(f"Connecting to: {uri}")
-    async with websockets.connect(uri) as websocket:
+    # Disable ping to avoid timeout during blocking server operations (model load)
+    async with websockets.connect(uri, ping_interval=None, close_timeout=120) as websocket:
         # 1. Wait for Hello
         greeting = await websocket.recv()
         print(f"< {greeting}")
