@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
 
     // 2. Start WebSocket Server
     std::string clientConfigPath = "./clients.json";  // Default path
-    Server::WsServer server(engine, monitor, clientConfigPath, port);
+    Server::WsServer server(engine, monitor, clientConfigPath, port, config.ctx_size);
     server.run();
     
     monitor.shutdown();

@@ -1,4 +1,5 @@
 #include "MetricsService.h"
+#include "../handlers/MetricsHandler.h"
 #include "../Protocol.h"
 #include <nlohmann/json.hpp>
 #include <chrono>
@@ -30,13 +31,19 @@ MetricsService::~MetricsService() {
     shutdown();
 }
 
-void MetricsService::start(BroadcastCallback callback) {
-    broadcastCallback_ = callback;
-    
+void MetricsService::start() {
     // Start metrics thread
-    metricsThread_ = std:: thread([this]() { metricsLoop(); });
+    metricsThread_ = std::thread([this]() { metricsLoop(); });
     
     std::cout << "MetricsService: Started" << std::endl;
+}
+
+void MetricsService::setMetricsHandler(MetricsHandler* handler) {
+    metricsHandler_ = handler;
+}
+
+void MetricsService::setEventLoop(uWS::Loop* loop) {
+    loop_ = loop;
 }
 
 void MetricsService::shutdown() {
@@ -58,11 +65,17 @@ void MetricsService::metricsLoop() {
         
         if (!running_) break;
         
-        // Build and broadcast metrics
+        // Build metrics JSON
         std::string metricsJson = buildMetricsJson();
         
-        if (broadcastCallback_) {
-            broadcastCallback_(metricsJson);
+        // Broadcast via event loop
+        if (loop_ && metricsHandler_) {
+            loop_->defer([this, metricsJson]() {
+                auto subscribers = metricsHandler_->getSubscribers();
+                for (auto* ws : subscribers) {
+                    ws->send(metricsJson, uWS::OpCode::TEXT);
+                }
+            });
         }
     }
 }

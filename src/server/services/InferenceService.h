@@ -75,6 +75,11 @@ public:
      */
     Core::Metrics getLastMetrics() const;
 
+    /**
+     * Abort a running task/session
+     */
+    bool abortTask(const std::string& session_id);
+    
 private:
     Core::SessionManager* sessionManager_;
     

@@ -112,7 +112,7 @@ public:
      * @param ctx Request context
      * @param payload JSON payload with session_id
      */
-    void handleAbort(RequestContext& ctx, const json& /*payload*/) {
+    void handleAbort(RequestContext& ctx, const json& payload) {
         auto* data = ctx.getData();
         
         // Check authentication
@@ -124,10 +124,29 @@ public:
             ctx.send(response);
             return;
         }
+
+        std::string session_id;
+        if (payload.contains("session_id")) {
+            session_id = payload["session_id"];
+        } else {
+             json response = {
+                {"op", Op::ERROR},
+                {"error", "Missing session_id"}
+            };
+            ctx.send(response);
+            return;
+        }
         
-        // TODO: Implement abort functionality in Session/SessionManager
-        // For now, just acknowledge
-        std::cout << "Abort requested (not yet implemented)" << std::endl;
+        bool success = inferenceService_->abortTask(session_id);
+        
+        json response = {
+            {"op", Op::ABORT},
+            {"session_id", session_id},
+            {"status", success ? "aborted" : "not_found"}
+        };
+        ctx.send(response);
+        
+        std::cout << "Abort requested for session " << session_id << ": " << (success ? "Success" : "Failed") << std::endl;
     }
 
 private:

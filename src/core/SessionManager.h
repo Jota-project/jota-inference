@@ -27,6 +27,9 @@ namespace Core {
         // Close a specific session
         bool closeSession(const std::string& session_id);
 
+        // Abort specific session generation
+        bool abortSession(const std::string& session_id);
+
         // Close all sessions for a specific client
         void closeClientSessions(const std::string& client_id);
 

@@ -1,9 +1,11 @@
 import asyncio
 import websockets
 import json
+import os
 
 async def test():
-    uri = "ws://localhost:3000"
+    uri = os.environ.get("TEST_URI", "ws://localhost/api/inference/")
+    print(f"Connecting to: {uri}")
     async with websockets.connect(uri) as websocket:
         # 1. Wait for Hello
         greeting = await websocket.recv()

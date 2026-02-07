@@ -7,7 +7,7 @@ using json = nlohmann::json;
 namespace Server {
 
 WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
-                   const std::string& clientConfigPath, int port)
+                   const std::string& clientConfigPath, int port, int ctx_size)
     : engine_(engine)
     , monitor_(monitor)
     , port_(port)
@@ -18,16 +18,16 @@ WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
     }
 
     // Create session manager
-    sessionManager_ = new Core::SessionManager(engine_.getModel(), 512);  // 512 ctx_size
+    sessionManager_ = std::make_unique<Core::SessionManager>(engine_.getModel(), ctx_size);
     sessionManager_->setClientAuth(&clientAuth_);
 
     // Create services
-    inferenceService_ = std::make_unique<InferenceService>(sessionManager_, 4); // 4 worker threads
-    metricsService_ = std::make_unique<MetricsService>(monitor_, sessionManager_, inferenceService_.get());
+    inferenceService_ = std::make_unique<InferenceService>(sessionManager_.get(), 4); // 4 worker threads
+    metricsService_ = std::make_unique<MetricsService>(monitor_, sessionManager_.get(), inferenceService_.get());
 
     // Create handlers
     authHandler_ = std::make_shared<AuthHandler>(clientAuth_);
-    sessionHandler_ = std::make_shared<SessionHandler>(sessionManager_);
+    sessionHandler_ = std::make_shared<SessionHandler>(sessionManager_.get());
     inferenceHandler_ = std::make_shared<InferenceHandler>(inferenceService_.get());
     metricsHandler_ = std::make_shared<MetricsHandler>();
 
@@ -52,7 +52,7 @@ WsServer::~WsServer() {
     }
 
     // Cleanup
-    delete sessionManager_;
+    // sessionManager_ is unique_ptr, will be deleted automatically
 
     std::cout << "WsServer destroyed" << std::endl;
 }
@@ -62,17 +62,9 @@ void WsServer::run() {
     this->loop_ = loop;
 
     // Start metrics service with broadcast callback
-    metricsService_->start([this](const std::string& metricsJson) {
-        // Get current subscribers from metrics handler
-        auto subscribers = metricsHandler_->getSubscribers();
-
-        // Broadcast to all subscribers (must use loop->defer for thread safety)
-        loop_->defer([this, subscribers, metricsJson]() {
-            for (auto* ws : subscribers) {
-                ws->send(metricsJson, uWS::OpCode::TEXT);
-            }
-        });
-    });
+    metricsService_->setMetricsHandler(metricsHandler_.get());
+    metricsService_->setEventLoop(loop_);
+    metricsService_->start();
 
     uWS::App()
         .ws<PerSocketData>("/*", {
@@ -109,6 +101,9 @@ void WsServer::run() {
                 std::cout << std::endl;
 
                 // Remove from metrics subscribers
+                // SAFETY: Must remove immediately to prevent use-after-free in MetricsService broadcast.
+                // MetricsService::metricsLoop uses loop->defer which runs on this same thread.
+                // By removing here, the next defer execution will not see this socket.
                 metricsHandler_->removeSubscriber(ws);
 
                 // Remove from connected clients

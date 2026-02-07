@@ -1,10 +1,12 @@
 import asyncio
 import websockets
 import json
+import os
 
 async def test_auth():
     """Test authentication with valid and invalid credentials"""
-    uri = "ws://localhost:3000"
+    uri = os.environ.get("TEST_URI", "ws://localhost/api/inference/")
+    print(f"Connecting to: {uri}")
     
     print("=== Testing Authentication ===\n")
     

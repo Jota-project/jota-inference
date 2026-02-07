@@ -380,7 +380,7 @@ Options:
                         -1 = auto-detect (default)
                         0 = CPU only
                         >0 = specific layer count
-  --ctx-size <N>        Context size in tokens (default: 512)
+  --ctx-size <N>        Context size in tokens (default: 512, configurable)
 ```
 
 **Examples:**

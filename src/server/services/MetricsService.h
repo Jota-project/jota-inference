@@ -4,11 +4,14 @@
 #include "../../core/SessionManager.h"
 #include "../../core/Metrics.h"
 #include "InferenceService.h"
+#include <App.h> // uWebSockets
 #include <functional>
 #include <thread>
 #include <atomic>
 
 namespace Server {
+
+class MetricsHandler;
 
 /**
  * MetricsService - Periodic metrics broadcasting
@@ -41,21 +44,25 @@ public:
     
     /**
      * Start metrics broadcasting
-     * @param callback Function to call with metrics JSON every second
      */
-    void start(BroadcastCallback callback);
+    void start();
     
     /**
      * Gracefully shutdown the metrics service
      */
     void shutdown();
+
+    // Setters for dependencies
+    void setMetricsHandler(MetricsHandler* handler);
+    void setEventLoop(uWS::Loop* loop);
     
 private:
     Hardware::Monitor& monitor_;
     Core::SessionManager* sessionManager_;
     InferenceService* inferenceService_;
     
-    BroadcastCallback broadcastCallback_;
+    MetricsHandler* metricsHandler_ = nullptr;
+    uWS::Loop* loop_ = nullptr;
     
     std::thread metricsThread_;
     std::atomic<bool> running_{true};

@@ -128,6 +128,16 @@ namespace Core {
         return true;
     }
 
+    bool SessionManager::abortSession(const std::string& session_id) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = sessions_.find(session_id);
+        if (it != sessions_.end()) {
+            it->second->abort();
+            return true;
+        }
+        return false;
+    }
+
     void SessionManager::closeClientSessions(const std::string& client_id) {
         std::lock_guard<std::mutex> lock(mutex_);
 

@@ -5,7 +5,7 @@ import time
 
 async def test_multi_session():
     """Test multiple concurrent sessions"""
-    uri = "ws://localhost:3000"
+    uri = "ws://localhost/api/inference/"
     
     print("=== Testing Multiple Concurrent Sessions ===\n")
     
