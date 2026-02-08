@@ -19,7 +19,7 @@ High-performance inference engine with **parallel session support** and **API to
 
 ```bash
 # Install dependencies
-sudo apt-get install -y build-essential cmake git zlib1g-dev
+sudo apt-get install -y build-essential cmake git zlib1g-dev libssl-dev
 
 # Clone and build
 git clone <repository-url>

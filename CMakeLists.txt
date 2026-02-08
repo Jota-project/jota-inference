@@ -33,6 +33,8 @@ endif()
 add_subdirectory(llama.cpp)
 
 find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
+
 
 # --- DEPENDENCIES (FetchContent) ---
 include(FetchContent)
@@ -83,6 +85,9 @@ add_library(uSockets STATIC ${USOCKETS_SOURCES})
 target_compile_definitions(uSockets PUBLIC LIBUS_NO_SSL)
 target_include_directories(uSockets PUBLIC "${usockets_SOURCE_DIR}/src")
 
+
+# 2.2 Configure uWebSockets
+
 # 2.2 Configure uWebSockets
 FetchContent_GetProperties(uwebsockets)
 if(NOT uwebsockets_POPULATED)
@@ -132,6 +137,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ZLIB::ZLIB
     Threads::Threads
     httplib::httplib
+    OpenSSL::SSL
+    OpenSSL::Crypto
     ${CMAKE_DL_LIBS}
 )
 
@@ -149,6 +156,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${uwebsockets_SOURCE_DIR}/src
     ${usockets_SOURCE_DIR}/src
 )
+
+# Enable OpenSSL support for cpp-httplib
+target_compile_definitions(${PROJECT_NAME} PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
 
 # 5. Flags
 if (NOT MSVC)

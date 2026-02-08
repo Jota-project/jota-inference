@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include <mutex>
+#include <chrono>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -15,6 +16,7 @@ namespace Server {
         int max_sessions = 1;
         std::string priority = "normal";
         std::string description;
+        std::chrono::system_clock::time_point last_validated;
     };
 
     class ClientAuth {

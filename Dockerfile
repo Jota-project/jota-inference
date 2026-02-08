@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     git \
     pkg-config \
     zlib1g-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

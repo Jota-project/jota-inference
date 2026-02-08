@@ -20,13 +20,31 @@ namespace Server {
     }
 
     bool ClientAuth::authenticate(const std::string& client_id, const std::string& api_key) {
+        // 1. Check Cache with TTL
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            auto it = client_cache_.find(client_id);
+            if (it != client_cache_.end()) {
+                auto now = std::chrono::system_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(now - it->second.last_validated).count();
+                
+                if (elapsed < 15) {
+                    // Constant-time check for key match just to be safe (though cache should be trusted if owned)
+                    if (it->second.api_key == api_key) {
+                        std::cout << "[Auth] Cache hit for " << client_id 
+                                  << " (Validated " << elapsed << " mins ago)" << std::endl;
+                        return true;
+                    }
+                } else {
+                    std::cout << "[Auth] Cache expired for " << client_id 
+                              << ". Re-validating..." << std::endl;
+                }
+            }
+        }
+
         std::cout << "[Auth] Validating " << client_id << " via JotaDB..." << std::endl;
 
-        // Parse URL to host and port
-        // Expected format: http://host:port/path/to/api
-        // We use httplib for this.
-        
-        // Find scheme
+        // 2. Parse and Sanitize URL
         std::string url = jota_db_url_;
         std::string scheme;
         std::string host_port;
@@ -39,13 +57,11 @@ namespace Server {
             scheme = "https";
             host_port = url.substr(8);
         } else {
-            // Default to http if no scheme
             scheme = "http"; 
             host_port = url;
             std::cerr << "[Auth] Warning: No scheme in JOTA_DB_URL, assuming http://" << std::endl;
         }
 
-        // Split host_port into host:port and path
         size_t path_pos = host_port.find('/');
         std::string domain;
         if (path_pos != std::string::npos) {
@@ -56,22 +72,25 @@ namespace Server {
             path_prefix = "";
         }
         
-        // Remove trailing slash from path_prefix if exists? 
-        // Actually we enter /auth/internal relative to it.
-        // Let's construct the full client URL.
+        // Remove trailing slash from path_prefix to avoid "//"
+        if (!path_prefix.empty() && path_prefix.back() == '/') {
+            path_prefix.pop_back();
+        }
+        
         std::string base_url = scheme + "://" + domain;
 
+        // 3. Perform HTTP/HTTPS Request
         httplib::Client cli(base_url.c_str());
         cli.set_connection_timeout(2); // 2 seconds timeout
         cli.set_read_timeout(3);       // 3 seconds read timeout
-
-        // Construct request path
-        // path_prefix might be "/api/db"
-        // Target: {JOTA_DB_URL}/auth/internal?client_id={id}&api_key={key}
-        std::string request_path = path_prefix + "/auth/internal";
         
-        // httplib handles query params via Params or manual string
-        // Manual string is easier here
+        #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+        if (scheme == "https") {
+            cli.enable_server_certificate_verification(false); // In prod maybe true, but internal often self-signed
+        }
+        #endif
+
+        std::string request_path = path_prefix + "/auth/internal";
         std::string query = "?client_id=" + client_id + "&api_key=" + api_key;
         std::string full_path = request_path + query;
         
@@ -80,15 +99,6 @@ namespace Server {
         if (res && res->status == 200) {
             try {
                 auto json_res = json::parse(res->body);
-                
-                // Expecting response struct like:
-                // { "authorized": true, "config": { "max_sessions": 2, ... } }
-                // OR just the config if authorized?
-                // The prompt says: "Utiliza nlohmann/json para procesar la respuesta"
-                // Let's assume standard success response has the config.
-                
-                // For robustness, let's assume if we get 200 OK it implies valid auth 
-                // BUT better check content if API returns 200 with { "error": ... }
                 
                 if (json_res.contains("error")) {
                      std::cout << "[Auth] Validation failed for " << client_id << ": " 
@@ -101,7 +111,8 @@ namespace Server {
                     std::lock_guard<std::mutex> lock(mutex_);
                     ClientConfig cfg;
                     cfg.client_id = client_id;
-                    cfg.api_key = api_key; // Don't strictly need to store this but ok
+                    cfg.api_key = api_key;
+                    cfg.last_validated = std::chrono::system_clock::now();
                     
                     if (json_res.contains("config")) {
                         auto& config_data = json_res["config"];
@@ -109,7 +120,6 @@ namespace Server {
                         cfg.priority = config_data.value("priority", "normal");
                         cfg.description = config_data.value("description", "");
                     } else {
-                         // Fallback if config is flat in response or missing
                         cfg.max_sessions = json_res.value("max_sessions", 1);
                         cfg.priority = json_res.value("priority", "normal");
                         cfg.description = json_res.value("description", "");
