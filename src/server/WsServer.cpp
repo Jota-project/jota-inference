@@ -7,15 +7,13 @@ using json = nlohmann::json;
 namespace Server {
 
 WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
-                   const std::string& clientConfigPath, int port, int ctx_size)
+                   int port, int ctx_size)
     : engine_(engine)
     , monitor_(monitor)
     , port_(port)
 {
-    // Load client authentication
-    if (!clientAuth_.loadConfig(clientConfigPath)) {
-        throw std::runtime_error("Failed to load client configuration from: " + clientConfigPath);
-    }
+    // Client authentication is now handled dynamically via JotaDB
+    // No static config loading required
 
     // Create session manager
     sessionManager_ = std::make_unique<Core::SessionManager>(engine_.getModel(), ctx_size);

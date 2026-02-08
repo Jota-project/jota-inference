@@ -22,21 +22,28 @@ namespace Server {
         ClientAuth();
         ~ClientAuth() = default;
 
-        // Load client configuration from JSON file
-        bool loadConfig(const std::string& configPath);
-
-        // Authenticate a client with client_id and api_key
+        // Authenticate a client with client_id and api_key via JotaDB
+        // Returns true if valid, false otherwise or on error
         bool authenticate(const std::string& client_id, const std::string& api_key);
 
         // Get client configuration (must be authenticated first)
+        // In JotaDB integration, this fetches or returns cached config
         ClientConfig getClientConfig(const std::string& client_id) const;
 
-        // Check if a client_id exists in the config
+        // Check if a client_id exists (via JotaDB check)
         bool clientExists(const std::string& client_id) const;
 
     private:
-        std::unordered_map<std::string, ClientConfig> clients_;
+        std::string jota_db_url_;
+        
+        // Simple cache to avoid hitting DB for every single token/operation if needed
+        // For now, per requirements, we will validate dynamicially but might cache config
+        // Mutable to allow modification in const methods if we implement caching
+        mutable std::unordered_map<std::string, ClientConfig> client_cache_;
         mutable std::mutex mutex_;
+
+        // Helper to parse JotaDB URL from env
+        void initJotaDB();
     };
 
 }

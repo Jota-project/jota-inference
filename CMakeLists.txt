@@ -58,6 +58,15 @@ FetchContent_Declare(
     GIT_TAG        v20.64.0
 )
 
+# 3. cpp-httplib (Sync HTTP client)
+FetchContent_Declare(
+    cpp-httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG        v0.18.3
+)
+FetchContent_MakeAvailable(cpp-httplib)
+
+
 # 2.1 Manually configure uSockets
 FetchContent_GetProperties(usockets)
 if(NOT usockets_POPULATED)
@@ -122,6 +131,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     nlohmann_json::nlohmann_json
     ZLIB::ZLIB
     Threads::Threads
+    httplib::httplib
     ${CMAKE_DL_LIBS}
 )
 

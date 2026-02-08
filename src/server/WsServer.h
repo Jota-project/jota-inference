@@ -33,7 +33,7 @@ namespace Server {
 class WsServer {
 public:
     WsServer(Core::Engine& engine, Hardware::Monitor& monitor, 
-             const std::string& clientConfigPath, int port = 3000, int ctx_size = 512);
+             int port = 3000, int ctx_size = 512);
     ~WsServer();
 
     // Start the server loop (blocking)

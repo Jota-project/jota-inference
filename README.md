@@ -35,29 +35,21 @@ cmake -DUSE_CUDA=ON ..
 make -j$(nproc)
 ```
 
-### 2. Configure Clients
-
-Edit `clients.json` to add your API clients:
-
-```json
-{
-  "clients": [
-    {
-      "client_id": "my_app",
-      "api_key": "sk_your_secure_api_key_here",
-      "max_sessions": 2,
-      "priority": "normal",
-      "description": "My Application"
-    }
-  ]
-}
-```
-
-### 3. Run Server
-
-```bash
-./InferenceCore --model /path/to/model.gguf --port 3000
-```
+### 2. Configure Authentication
+ 
+ The server now uses **JotaDB** for centralized authentication.
+ 
+ Set the environment variable `JOTA_DB_URL` (defaults to `http://localhost:8000/api/db`):
+ 
+ ```bash
+ export JOTA_DB_URL="http://production-db.internal/api/db"
+ ```
+ 
+ ### 3. Run Server
+ 
+ ```bash
+ ./InferenceCore --model /path/to/model.gguf --port 3000
+ ```
 
 ### 4. Connect Client
 
@@ -279,44 +271,17 @@ Or on failure:
 
 ---
 
-## 🔐 Client Configuration
+## 🔐 Authentication
+ 
+ Authentication is handled by **JotaDB**. The server performs a strictly validated HTTP GET request for every `auth` operation:
+ 
+ `GET {JOTA_DB_URL}/auth/internal?client_id={id}&api_key={key}`
+ 
+ **Security Features:**
+ - Connection timeout: 2 seconds
+ - Read timeout: 3 seconds
+ - Default Deny: If DB is unreachable or returns error, auth is denied.
 
-Edit `clients.json` to manage API clients:
-
-```json
-{
-  "clients": [
-    {
-      "client_id": "laptop_principal",
-      "api_key": "sk_laptop_abc123...",
-      "max_sessions": 2,
-      "priority": "high",
-      "description": "Main development laptop"
-    },
-    {
-      "client_id": "desktop_oficina",
-      "api_key": "sk_desktop_xyz789...",
-      "max_sessions": 4,
-      "priority": "normal",
-      "description": "Office desktop"
-    },
-    {
-      "client_id": "test_client",
-      "api_key": "sk_test_qwe456...",
-      "max_sessions": 1,
-      "priority": "low",
-      "description": "Testing and development"
-    }
-  ]
-}
-```
-
-**Fields:**
-- `client_id`: Unique identifier for the client
-- `api_key`: Secure API token (use long random strings)
-- `max_sessions`: Maximum concurrent sessions allowed
-- `priority`: Client priority (currently informational)
-- `description`: Human-readable description
 
 ---
 
@@ -399,14 +364,9 @@ Options:
 ## 🐛 Troubleshooting
 
 ### "Failed to load client configuration"
+ 
+ Check that `JOTA_DB_URL` is reachable from the server.
 
-Ensure `clients.json` exists in the same directory as the executable:
-
-```bash
-cp clients.json build/
-# OR
-./InferenceCore --model model.gguf  # Run from project root
-```
 
 ### "Authentication failed"
 
