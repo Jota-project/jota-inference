@@ -12,6 +12,12 @@ if(USE_CUDA)
     find_package(CUDAToolkit REQUIRED)
     add_compile_definitions(USE_CUDA)
     message(STATUS "CUDA enabled")
+    
+    # Add CUDA stubs for building in Docker without GPU
+    # This MUST be before add_subdirectory(llama.cpp) so ggml-cuda can find libcuda.so
+    link_directories(${CUDAToolkit_LIBRARY_DIR}/stubs)
+    link_directories(/usr/local/cuda/lib64/stubs)
+    set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /usr/local/cuda/lib64/stubs)
 else()
     message(STATUS "Building CPU-only version")
 endif()
@@ -124,6 +130,7 @@ if(USE_CUDA)
         CUDA::cudart
         CUDA::cublas
         CUDA::nvml
+        CUDA::cuda_driver
     )
 endif()
 
@@ -139,20 +146,24 @@ if (NOT MSVC)
 endif()
 
 # --- TESTS ---
-enable_testing()
+option(BUILD_TESTS "Build unit tests" OFF)
 
-add_executable(run_tests
-    src/server/ClientAuth.cpp
-    tests/test_protocol.cpp
-    tests/test_auth.cpp
-    tests/catch_amalgamated.cpp
-)
+if(BUILD_TESTS)
+    enable_testing()
 
-target_include_directories(run_tests PRIVATE 
-    src 
-    tests
-)
+    add_executable(run_tests
+        src/server/ClientAuth.cpp
+        tests/test_protocol.cpp
+        tests/test_auth.cpp
+        tests/catch_amalgamated.cpp
+    )
 
-target_link_libraries(run_tests PRIVATE
-    nlohmann_json::nlohmann_json
-)
+    target_include_directories(run_tests PRIVATE 
+        src 
+        tests
+    )
+
+    target_link_libraries(run_tests PRIVATE
+        nlohmann_json::nlohmann_json
+    )
+endif()

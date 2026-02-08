@@ -10,6 +10,7 @@
 #include "MessageDispatcher.h"
 #include "services/InferenceService.h"
 #include "services/MetricsService.h"
+#include "handlers/PingHandler.h"
 #include "handlers/AuthHandler.h"
 #include "handlers/SessionHandler.h"
 #include "handlers/InferenceHandler.h"
@@ -54,6 +55,7 @@ private:
     std::unique_ptr<MetricsService> metricsService_;
     
     // Handlers (shared_ptr for MessageDispatcher sharing)
+    std::shared_ptr<PingHandler> pingHandler_;
     std::shared_ptr<AuthHandler> authHandler_;
     std::shared_ptr<SessionHandler> sessionHandler_;
     std::shared_ptr<InferenceHandler> inferenceHandler_;

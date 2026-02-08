@@ -49,8 +49,11 @@ public:
      * Can be called from any thread
      */
     void sendRaw(const std::string& message) const {
-        loop_->defer([this, message]() {
-            ws_->send(message, uWS::OpCode::TEXT);
+        auto* ws = ws_;
+        auto* loop = loop_;
+
+        loop->defer([ws, message]() {
+            ws->send(message, uWS::OpCode::TEXT);
         });
     }
     

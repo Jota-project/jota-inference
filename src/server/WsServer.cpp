@@ -26,6 +26,7 @@ WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
     metricsService_ = std::make_unique<MetricsService>(monitor_, sessionManager_.get(), inferenceService_.get());
 
     // Create handlers
+    pingHandler_ = std::make_shared<PingHandler>();
     authHandler_ = std::make_shared<AuthHandler>(clientAuth_);
     sessionHandler_ = std::make_shared<SessionHandler>(sessionManager_.get());
     inferenceHandler_ = std::make_shared<InferenceHandler>(inferenceService_.get());
@@ -33,6 +34,7 @@ WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
 
     // Create message dispatcher
     dispatcher_ = std::make_unique<MessageDispatcher>(
+        pingHandler_,
         authHandler_,
         sessionHandler_,
         inferenceHandler_,

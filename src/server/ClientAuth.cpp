@@ -28,15 +28,10 @@ namespace Server {
 
             clients_.clear();
 
-            for (const auto& client_data : config["clients"]) {
+            // Iterate over the clients object, using keys as client_id
+            for (const auto& [client_id, client_data] : config["clients"].items()) {
                 ClientConfig cfg;
-                
-                if (client_data.contains("client_id")) {
-                    cfg.client_id = client_data["client_id"].get<std::string>();
-                } else {
-                     std::cerr << "Client missing client_id" << std::endl;
-                     continue;
-                }
+                cfg.client_id = client_id; // Use the JSON key as client_id
                 
                 if (client_data.contains("api_key")) {
                     cfg.api_key = client_data["api_key"].get<std::string>();

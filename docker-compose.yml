@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  inference-center:
+    build: .
+    container_name: inference-center
+    # IMPORTANTE: Habilitar acceso a la GPU NVIDIA
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "8001:8001"
+    volumes:
+      # Montar la carpeta de modelos del host
+      - ./models:/models
+      # Montar la configuración de clientes para poder editarla en caliente
+      - ./clients.json:/app/clients.json
+    environment:
+      - MODEL_PATH=/models/LFM/LFM2.5-1.2B-Thinking-Q4_K_M.gguf
+      - PORT=8001
+    restart: unless-stopped

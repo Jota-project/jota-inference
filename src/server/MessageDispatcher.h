@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RequestContext.h"
+#include "handlers/PingHandler.h"
 #include "handlers/AuthHandler.h"
 #include "handlers/SessionHandler.h"
 #include "handlers/InferenceHandler.h"
@@ -22,17 +23,19 @@ namespace Server {
 class MessageDispatcher {
 public:
     MessageDispatcher(
+        std::shared_ptr<PingHandler> pingHandler,
         std::shared_ptr<AuthHandler> authHandler,
         std::shared_ptr<SessionHandler> sessionHandler,
         std::shared_ptr<InferenceHandler> inferenceHandler,
         std::shared_ptr<MetricsHandler> metricsHandler
     )
-        : authHandler_(authHandler)
+        : pingHandler_(pingHandler)
+        , authHandler_(authHandler)
         , sessionHandler_(sessionHandler)
         , inferenceHandler_(inferenceHandler)
         , metricsHandler_(metricsHandler)
     {
-        if (!authHandler_ || !sessionHandler_ || !inferenceHandler_ || !metricsHandler_) {
+        if (!pingHandler_ || !authHandler_ || !sessionHandler_ || !inferenceHandler_ || !metricsHandler_) {
             throw std::invalid_argument("All handlers must be provided");
         }
     }
@@ -56,7 +59,11 @@ public:
             std::string op = data["op"];
             
             // Route to appropriate handler
-            if (op == Op::AUTH) {
+            // HELLO does not require authentication
+            if (op == Op::HELLO) {
+                pingHandler_->handle(ctx, data);
+            }
+            else if (op == Op::AUTH) {
                 authHandler_->handle(ctx, data);
             }
             else if (op == Op::CREATE_SESSION) {
@@ -89,6 +96,7 @@ public:
     }
 
 private:
+    std::shared_ptr<PingHandler> pingHandler_;
     std::shared_ptr<AuthHandler> authHandler_;
     std::shared_ptr<SessionHandler> sessionHandler_;
     std::shared_ptr<InferenceHandler> inferenceHandler_;

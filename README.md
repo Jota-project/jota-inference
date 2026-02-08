@@ -493,11 +493,21 @@ sudo systemctl start inference-center
 sudo systemctl status inference-center
 ```
 
-### Using Docker (Future)
+### Using Docker
 
-```dockerfile
-# Dockerfile coming soon
+```bash
+# 1. Build and Run with Docker Compose
+docker-compose up -d --build
+
+# 2. View Logs
+docker-compose logs -f
+
+# 3. Stop
+docker-compose down
 ```
+
+**Note:** Requires NVIDIA Container Toolkit for GPU pass-through.
+
 
 ---
 
