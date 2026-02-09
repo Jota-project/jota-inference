@@ -104,6 +104,7 @@ add_executable(${PROJECT_NAME}
     src/core/Engine.cpp
     src/core/Session.cpp
     src/core/SessionManager.cpp
+    src/core/EnvLoader.cpp
     # Server - Core
     src/server/Protocol.h
     src/server/WsServer.h

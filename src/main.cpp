@@ -4,6 +4,7 @@
 #include "Engine.h"
 #include "WsServer.h"
 #include "Monitor.h"
+#include "EnvLoader.h"
 
 // Helper to get file size
 unsigned long long getFileSize(const std::string& filename) {
@@ -13,6 +14,11 @@ unsigned long long getFileSize(const std::string& filename) {
 }
 
 int main(int argc, char** argv) {
+    // 0. Load Environment Variables
+    if (!Core::EnvLoader::load()) {
+        std::cerr << "WARNING: Failed to load .env file. using system environment or defaults." << std::endl;
+    }
+
     std::string modelPath;
     std::string initialPrompt;
     int port = 3000;

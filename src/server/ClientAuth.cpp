@@ -1,4 +1,5 @@
 #include "ClientAuth.h"
+#include "EnvLoader.h"
 #include <iostream>
 #include <cstdlib>
 #include <httplib.h>
@@ -10,13 +11,14 @@ namespace Server {
     }
 
     void ClientAuth::initJotaDB() {
-        const char* env_url = std::getenv("JOTA_DB_URL");
-        if (env_url) {
-            jota_db_url_ = env_url;
-        } else {
-            jota_db_url_ = "http://localhost:8000/api/db";
-        }
+        // Load configuration using EnvLoader
+        jota_db_url_ = Core::EnvLoader::get("JOTA_DB_URL", "https://green-house.local/api/db");
+        jota_sk_ = Core::EnvLoader::get("JOTA_SK", "");
+
         std::cout << "[Auth] JotaDB URL configured: " << jota_db_url_ << std::endl;
+        if (jota_sk_.empty()) {
+            std::cerr << "[Auth] WARNING: JOTA_SK is not set! JotaDB authentication requests may fail." << std::endl;
+        }
     }
 
     bool ClientAuth::authenticate(const std::string& client_id, const std::string& api_key) {
@@ -29,15 +31,14 @@ namespace Server {
                 auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(now - it->second.last_validated).count();
                 
                 if (elapsed < 15) {
-                    // Constant-time check for key match just to be safe (though cache should be trusted if owned)
+                    // Check if the provided key matches the cached key
                     if (it->second.api_key == api_key) {
-                        std::cout << "[Auth] Cache hit for " << client_id 
-                                  << " (Validated " << elapsed << " mins ago)" << std::endl;
                         return true;
                     }
+                    // If key doesn't match, we fall through to DB to check if it was rotated
                 } else {
                     std::cout << "[Auth] Cache expired for " << client_id 
-                              << ". Re-validating..." << std::endl;
+                              << " (" << elapsed << " mins). Re-validating..." << std::endl;
                 }
             }
         }
@@ -57,9 +58,9 @@ namespace Server {
             scheme = "https";
             host_port = url.substr(8);
         } else {
+            // Default to http if no scheme provided, though warning was logged
             scheme = "http"; 
             host_port = url;
-            std::cerr << "[Auth] Warning: No scheme in JOTA_DB_URL, assuming http://" << std::endl;
         }
 
         size_t path_pos = host_port.find('/');
@@ -72,7 +73,7 @@ namespace Server {
             path_prefix = "";
         }
         
-        // Remove trailing slash from path_prefix to avoid "//"
+        // Remove trailing slash from path_prefix
         if (!path_prefix.empty() && path_prefix.back() == '/') {
             path_prefix.pop_back();
         }
@@ -86,7 +87,7 @@ namespace Server {
         
         #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
         if (scheme == "https") {
-            cli.enable_server_certificate_verification(false); // In prod maybe true, but internal often self-signed
+            cli.enable_server_certificate_verification(false); // Validating self-signed certs might require CA setup
         }
         #endif
 
@@ -94,7 +95,13 @@ namespace Server {
         std::string query = "?client_id=" + client_id + "&api_key=" + api_key;
         std::string full_path = request_path + query;
         
-        auto res = cli.Get(full_path.c_str());
+        // Add Authorization Header
+        httplib::Headers headers;
+        if (!jota_sk_.empty()) {
+            headers.emplace("Authorization", "Bearer " + jota_sk_);
+        }
+
+        auto res = cli.Get(full_path.c_str(), headers);
 
         if (res && res->status == 200) {
             try {
@@ -154,9 +161,6 @@ namespace Server {
             return it->second;
         }
         
-        // If not in cache, we could try to fetch again, but getClientConfig 
-        // is usually called AFTER authenticate.
-        // Returning empty default.
         return ClientConfig(); 
     }
 
