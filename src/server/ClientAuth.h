@@ -37,7 +37,8 @@ namespace Server {
 
     private:
         std::string jota_db_url_;
-        std::string jota_sk_;
+        std::string jota_db_usr_;
+        std::string jota_db_sk_;
         
         // Simple cache to avoid hitting DB for every single token/operation if needed
         // For now, per requirements, we will validate dynamicially but might cache config

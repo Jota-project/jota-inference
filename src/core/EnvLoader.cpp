@@ -20,11 +20,20 @@ namespace Core {
     }
 
     bool EnvLoader::load() {
-        std::ifstream file(".env");
+        std::string env_path = ".env";
+        std::ifstream file(env_path);
+        
         if (!file.is_open()) {
-            std::cerr << "[EnvLoader] .env file not found." << std::endl;
-            return false;
+            // Try parent directory (common when running from build/)
+            env_path = "../.env";
+            file.open(env_path);
+            if (!file.is_open()) {
+                std::cerr << "[EnvLoader] .env file not found in current or parent directory." << std::endl;
+                return false;
+            }
         }
+        
+        std::cout << "[EnvLoader] Loading configuration from " << env_path << std::endl;
 
         std::string line;
         while (std::getline(file, line)) {

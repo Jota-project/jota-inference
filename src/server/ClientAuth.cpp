@@ -13,11 +13,13 @@ namespace Server {
     void ClientAuth::initJotaDB() {
         // Load configuration using EnvLoader
         jota_db_url_ = Core::EnvLoader::get("JOTA_DB_URL", "https://green-house.local/api/db");
-        jota_sk_ = Core::EnvLoader::get("JOTA_SK", "");
+        jota_db_usr_ = Core::EnvLoader::get("JOTA_DB_USR", "");
+        jota_db_sk_ = Core::EnvLoader::get("JOTA_DB_SK", "");
+        
 
         std::cout << "[Auth] JotaDB URL configured: " << jota_db_url_ << std::endl;
-        if (jota_sk_.empty()) {
-            std::cerr << "[Auth] WARNING: JOTA_SK is not set! JotaDB authentication requests may fail." << std::endl;
+        if (jota_db_sk_.empty() || jota_db_usr_.empty()) {
+            std::cerr << "[Auth] WARNING: JOTA_DB_SK or JOTA_DB_USR is not set! JotaDB authentication requests may fail." << std::endl;
         }
     }
 
@@ -92,16 +94,15 @@ namespace Server {
         #endif
 
         std::string request_path = path_prefix + "/auth/internal";
-        std::string query = "?client_id=" + client_id + "&api_key=" + api_key;
-        std::string full_path = request_path + query;
-        
-        // Add Authorization Header
-        httplib::Headers headers;
-        if (!jota_sk_.empty()) {
-            headers.emplace("Authorization", "Bearer " + jota_sk_);
-        }
 
-        auto res = cli.Get(full_path.c_str(), headers);
+        
+        // Use Headers for authentication (Security Best Practice)
+        httplib::Headers headers = {
+            {"X-Client-ID", client_id},
+            {"X-API-Key", api_key}
+        };
+
+        auto res = cli.Get(request_path.c_str(), headers);
 
         if (res && res->status == 200) {
             try {
