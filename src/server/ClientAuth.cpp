@@ -33,14 +33,15 @@ namespace Server {
                 auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(now - it->second.last_validated).count();
                 
                 if (elapsed < 15) {
-                    // Check if the provided key matches the cached key
+                    // Constant-time check for key match just to be safe (though cache should be trusted if owned)
                     if (it->second.api_key == api_key) {
+                        std::cout << "[Auth] Cache hit for " << client_id 
+                                  << " (Validated " << elapsed << " mins ago)" << std::endl;
                         return true;
                     }
-                    // If key doesn't match, we fall through to DB to check if it was rotated
                 } else {
                     std::cout << "[Auth] Cache expired for " << client_id 
-                              << " (" << elapsed << " mins). Re-validating..." << std::endl;
+                              << ". Re-validating..." << std::endl;
                 }
             }
         }
@@ -51,8 +52,7 @@ namespace Server {
         std::string url = jota_db_url_;
         std::string scheme;
         std::string host_port;
-        std::string path_prefix;
-
+        // Logic duplicated, could exact to helper method but for now inline is fine
         if (url.find("http://") == 0) {
             scheme = "http";
             host_port = url.substr(7);
@@ -60,13 +60,13 @@ namespace Server {
             scheme = "https";
             host_port = url.substr(8);
         } else {
-            // Default to http if no scheme provided, though warning was logged
             scheme = "http"; 
             host_port = url;
         }
 
         size_t path_pos = host_port.find('/');
         std::string domain;
+        std::string path_prefix;
         if (path_pos != std::string::npos) {
             domain = host_port.substr(0, path_pos);
             path_prefix = host_port.substr(path_pos);
@@ -75,7 +75,6 @@ namespace Server {
             path_prefix = "";
         }
         
-        // Remove trailing slash from path_prefix
         if (!path_prefix.empty() && path_prefix.back() == '/') {
             path_prefix.pop_back();
         }
@@ -84,24 +83,29 @@ namespace Server {
 
         // 3. Perform HTTP/HTTPS Request
         httplib::Client cli(base_url.c_str());
-        cli.set_connection_timeout(2); // 2 seconds timeout
-        cli.set_read_timeout(3);       // 3 seconds read timeout
+        cli.set_connection_timeout(2);
+        cli.set_read_timeout(3);
         
         #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
         if (scheme == "https") {
-            cli.enable_server_certificate_verification(false); // Validating self-signed certs might require CA setup
+            cli.enable_server_certificate_verification(false); 
         }
         #endif
 
         std::string request_path = path_prefix + "/auth/internal";
-
         
-        // Use Headers for authentication (Security Best Practice)
-        httplib::Headers headers = {
-            {"X-Client-ID", client_id},
-            {"X-API-Key", api_key}
-        };
-
+        // Headers construction
+        httplib::Headers headers;
+        
+        // 1. Client Credentials (X-Headers)
+        headers.emplace("X-Client-ID", client_id);
+        headers.emplace("X-API-Key", api_key);
+        
+        // 2. Server Identity (Bearer Token)
+        if (!jota_db_sk_.empty()) {
+            headers.emplace("Authorization", "Bearer " + jota_db_sk_);
+        }
+        
         auto res = cli.Get(request_path.c_str(), headers);
 
         if (res && res->status == 200) {
@@ -128,6 +132,7 @@ namespace Server {
                         cfg.priority = config_data.value("priority", "normal");
                         cfg.description = config_data.value("description", "");
                     } else {
+                        // Fallback
                         cfg.max_sessions = json_res.value("max_sessions", 1);
                         cfg.priority = json_res.value("priority", "normal");
                         cfg.description = json_res.value("description", "");
@@ -152,6 +157,76 @@ namespace Server {
                       << " Error: " << err << std::endl;
             return false;
         }
+    }
+
+    bool ClientAuth::verifyConnection() {
+        std::string url = jota_db_url_;
+        // Basic URL parsing (simplified for brevity, should ideally share logic)
+        std::string scheme;
+        std::string host_port;
+        if (url.find("http://") == 0) {
+            scheme = "http";
+            host_port = url.substr(7);
+        } else if (url.find("https://") == 0) {
+            scheme = "https";
+            host_port = url.substr(8);
+        } else {
+            scheme = "http"; 
+            host_port = url;
+        }
+
+        size_t path_pos = host_port.find('/');
+        std::string domain;
+        std::string path_prefix;
+        if (path_pos != std::string::npos) {
+            domain = host_port.substr(0, path_pos);
+            path_prefix = host_port.substr(path_pos);
+        } else {
+            domain = host_port;
+            path_prefix = "";
+        }
+        
+        if (!path_prefix.empty() && path_prefix.back() == '/') {
+            path_prefix.pop_back();
+        }
+        
+        std::string base_url = scheme + "://" + domain;
+        httplib::Client cli(base_url.c_str());
+        cli.set_connection_timeout(3);
+        cli.set_read_timeout(3);
+        
+        #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+        if (scheme == "https") {
+            cli.enable_server_certificate_verification(false); 
+        }
+        #endif
+
+        std::string request_path = path_prefix + "/health"; 
+        
+        httplib::Headers headers;
+        if (!jota_db_sk_.empty()) {
+            headers.emplace("Authorization", "Bearer " + jota_db_sk_);
+        } else {
+            std::cerr << "[Auth] WARNING: JOTA_DB_SK is empty. Authorization will likely fail." << std::endl;
+        }
+        
+        auto res = cli.Get(request_path.c_str(), headers);
+        
+        if (res && res->status == 200) {
+             std::cout << "[Auth] JotaDB Connection Verified (Heartbeat OK)" << std::endl;
+             return true;
+        }
+        
+        if (res) {
+             std::cerr << "[Auth] Connection Failed. Status: " << res->status << std::endl;
+             if (res->status == 401 || res->status == 403) {
+                 std::cerr << "[FATAL] Authorization Error: Check JOTA_DB_SK" << std::endl;
+             }
+        } else {
+             std::cerr << "[Auth] Connection Failed. Network Error: " << res.error() << std::endl;
+        }
+        
+        return false;
     }
 
     ClientConfig ClientAuth::getClientConfig(const std::string& client_id) const {

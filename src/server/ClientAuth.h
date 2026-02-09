@@ -28,6 +28,10 @@ namespace Server {
         // Returns true if valid, false otherwise or on error
         bool authenticate(const std::string& client_id, const std::string& api_key);
 
+        // Verify connection and authorization with JotaDB (Heartbeat)
+        // Uses the configured JOTA_DB_SK to authenticate itself
+        bool verifyConnection();
+
         // Get client configuration (must be authenticated first)
         // In JotaDB integration, this fetches or returns cached config
         ClientConfig getClientConfig(const std::string& client_id) const;

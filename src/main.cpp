@@ -5,6 +5,7 @@
 #include "WsServer.h"
 #include "Monitor.h"
 #include "EnvLoader.h"
+#include "ClientAuth.h"
 
 // Helper to get file size
 unsigned long long getFileSize(const std::string& filename) {
@@ -17,6 +18,15 @@ int main(int argc, char** argv) {
     // 0. Load Environment Variables
     if (!Core::EnvLoader::load()) {
         std::cerr << "WARNING: Failed to load .env file. using system environment or defaults." << std::endl;
+    }
+
+    // 0.1 Verify JotaDB Connection (Heartbeat)
+    {
+        Server::ClientAuth auth;
+        if (!auth.verifyConnection()) {
+             std::cerr << "[FATAL] InferenceCenter could not authorize with JotaDB. Check your JOTA_DB_SK." << std::endl;
+             return 1;
+        }
     }
 
     std::string modelPath;
