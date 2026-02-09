@@ -174,17 +174,25 @@ if(BUILD_TESTS)
 
     add_executable(run_tests
         src/server/ClientAuth.cpp
+        src/core/EnvLoader.cpp
         tests/test_protocol.cpp
         tests/test_auth.cpp
+        tests/test_env.cpp
         tests/catch_amalgamated.cpp
     )
 
     target_include_directories(run_tests PRIVATE 
         src 
+        src/core
+        src/server
         tests
     )
 
     target_link_libraries(run_tests PRIVATE
         nlohmann_json::nlohmann_json
+        httplib::httplib
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        Threads::Threads
     )
 endif()
