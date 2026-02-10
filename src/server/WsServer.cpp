@@ -68,22 +68,64 @@ void WsServer::run() {
 
     uWS::App()
         .ws<PerSocketData>("/*", {
+            .upgrade = [this](auto* res, auto* req, auto* context) {
+                // Extract authentication headers from HTTP request
+                auto client_id = req->getHeader("x-client-id");
+                auto api_key = req->getHeader("x-api-key");
+                
+                // Validate presence of required headers
+                if (client_id.empty() || api_key.empty()) {
+                    std::cout << "Client connection rejected: Missing authentication headers" << std::endl;
+                    res->writeStatus("401 Unauthorized");
+                    res->writeHeader("Content-Type", "application/json");
+                    res->end("{\"error\":\"Missing X-Client-ID or X-API-Key headers\"}");
+                    return;
+                }
+                
+                std::cout << "Client connecting with ID: " << client_id << std::endl;
+                
+                // Authenticate via JotaDB
+                if (!clientAuth_.authenticate(std::string(client_id), std::string(api_key))) {
+                    std::cout << "Client authentication failed: " << client_id << std::endl;
+                    res->writeStatus("401 Unauthorized");
+                    res->writeHeader("Content-Type", "application/json");
+                    res->end("{\"error\":\"Invalid credentials\"}");
+                    return;
+                }
+                
+                // Authentication successful - prepare user data
+                PerSocketData userData;
+                userData.authenticated = true;
+                userData.client_id = std::string(client_id);
+                
+                // Complete the WebSocket upgrade
+                res->template upgrade<PerSocketData>(
+                    std::move(userData),
+                    req->getHeader("sec-websocket-key"),
+                    req->getHeader("sec-websocket-protocol"),
+                    req->getHeader("sec-websocket-extensions"),
+                    context
+                );
+            },
             .open = [this](auto* ws) {
-                std::cout << "Client connected (unauthenticated)" << std::endl;
-
+                auto* data = ws->getUserData();
+                
+                // Client is already authenticated via upgrade handler
+                std::cout << "Client authenticated: " << data->client_id << std::endl;
+                
+                auto config = clientAuth_.getClientConfig(data->client_id);
+                json response = {
+                    {"op", Op::AUTH_SUCCESS},
+                    {"client_id", data->client_id},
+                    {"max_sessions", config.max_sessions}
+                };
+                ws->send(response.dump(), uWS::OpCode::TEXT);
+                
                 // Track connection
                 {
                     std::lock_guard<std::mutex> lock(clientsMutex_);
                     connectedClients_.insert(ws);
                 }
-
-                // Send hello message
-                json hello = {
-                    {"op", Op::HELLO},
-                    {"status", "ready"},
-                    {"message", "Please authenticate with AUTH operation"}
-                };
-                ws->send(hello.dump(), uWS::OpCode::TEXT);
             },
             .message = [this](auto* ws, std::string_view message, uWS::OpCode) {
                 // Create request context

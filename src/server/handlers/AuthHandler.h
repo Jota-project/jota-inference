@@ -25,6 +25,18 @@ public:
      * @param payload JSON payload with client_id and api_key
      */
     void handle(RequestContext& ctx, const json& payload) {
+        auto* data = ctx.getData();
+        
+        // Check if already authenticated via headers
+        if (data->authenticated) {
+            json response = {
+                {"op", Op::AUTH_FAILED},
+                {"reason", "Already authenticated via headers. AUTH operation is deprecated."}
+            };
+            ctx.send(response);
+            return;
+        }
+        
         // Extract credentials
         if (!payload.contains("client_id") || !payload.contains("api_key")) {
             json response = {
@@ -41,7 +53,6 @@ public:
         // Validate credentials
         if (clientAuth_.authenticate(client_id, api_key)) {
             // Authentication successful
-            auto* data = ctx.getData();
             data->authenticated = true;
             data->client_id = client_id;
             
