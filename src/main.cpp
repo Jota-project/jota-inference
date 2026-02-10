@@ -21,12 +21,27 @@ int main(int argc, char** argv) {
     }
 
     // 0.1 Verify JotaDB Connection (Heartbeat)
+    std::cout << "========================================" << std::endl;
+    std::cout << "  JOTADB AUTHENTICATION VERIFICATION" << std::endl;
+    std::cout << "========================================" << std::endl;
     {
         Server::ClientAuth auth;
+        std::cout << "Connecting to JotaDB..." << std::endl;
+        
         if (!auth.verifyConnection()) {
-             std::cerr << "[FATAL] InferenceCenter could not authorize with JotaDB. Check your JOTA_DB_SK." << std::endl;
-             return 1;
+            std::cerr << std::endl;
+            std::cerr << "❌ [FATAL] AUTHENTICATION FAILED" << std::endl;
+            std::cerr << "   InferenceCenter could not authorize with JotaDB." << std::endl;
+            std::cerr << "   Please check your JOTA_DB_SK and JOTA_DB_URL configuration." << std::endl;
+            std::cerr << "========================================" << std::endl;
+            return 1;
         }
+        
+        std::cout << std::endl;
+        std::cout << "✅ [SUCCESS] AUTHENTICATION VERIFIED" << std::endl;
+        std::cout << "   InferenceCenter is authorized with JotaDB." << std::endl;
+        std::cout << "========================================" << std::endl;
+        std::cout << std::endl;
     }
 
     std::string modelPath;
@@ -115,17 +130,24 @@ int main(int argc, char** argv) {
         config.n_gpu_layers = gpuLayers;
     }
     
-    std::cout << "Loading model: " << modelPath << "..." << std::endl;
-    std::cout << "Configuration:" << std::endl;
-    std::cout << "  GPU Layers: " << config.n_gpu_layers << std::endl;
-    std::cout << "  Context Size: " << config.ctx_size << " tokens" << std::endl;
     
+    // Load model silently
     if (!engine.loadModel(config)) {
-        std::cerr << "Failed to load model." << std::endl;
+        std::cerr << std::endl;
+        std::cerr << "========================================" << std::endl;
+        std::cerr << "❌ [FATAL] MODEL LOADING FAILED" << std::endl;
+        std::cerr << "   Could not load model: " << modelPath << std::endl;
+        std::cerr << "========================================" << std::endl;
         monitor.shutdown();
         return 1;
     }
-    std::cout << "Model loaded successfully." << std::endl;
+    
+    std::cout << "========================================" << std::endl;
+    std::cout << "✅ MODEL LOADED SUCCESSFULLY" << std::endl;
+    std::cout << "   GPU Layers: " << config.n_gpu_layers << std::endl;
+    std::cout << "   Context Size: " << config.ctx_size << " tokens" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << std::endl;
 
     // 2. Start WebSocket Server
     Server::WsServer server(engine, monitor, port, config.ctx_size);
