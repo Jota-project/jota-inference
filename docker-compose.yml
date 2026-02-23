@@ -11,15 +11,17 @@ services:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [ gpu ]
     ports:
       - "8001:8001"
     volumes:
       # Montar la carpeta de modelos del host
       - ./models:/models
-      # Montar la configuración de clientes para poder editarla en caliente
-      - ./clients.json:/app/clients.json
+      # Montar la configuración de entorno
+      - ./.env:/app/.env
     environment:
       - MODEL_PATH=/models/LFM/LFM2.5-1.2B-Thinking-Q4_K_M.gguf
       - PORT=8001
+    env_file:
+      - .env
     restart: unless-stopped
