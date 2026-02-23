@@ -1,5 +1,5 @@
 #include "catch_amalgamated.hpp"
-#include "../src/core/EnvLoader.h"
+#include "EnvLoader.h"
 #include <fstream>
 #include <cstdlib>
 

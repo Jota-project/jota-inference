@@ -6,7 +6,7 @@
 #include "Monitor.h"
 #include "EnvLoader.h"
 #include "ClientAuth.h"
-#include "server/Utils.h"
+#include "Logger.h"
 
 // Helper to get file size
 unsigned long long getFileSize(const std::string& filename) {

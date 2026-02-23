@@ -100,16 +100,17 @@ endif()
 # 3. Tu ejecutable
 add_executable(${PROJECT_NAME} 
     src/main.cpp 
-    # Core
+    # Core (Inference)
     src/core/Engine.cpp
     src/core/Session.cpp
     src/core/SessionManager.cpp
-    src/core/EnvLoader.cpp
-    src/core/LlamaLogger.cpp
+    # Config
+    src/config/EnvLoader.cpp
+    # Logging
+    src/logging/Logger.cpp
+    src/logging/LlamaLogger.cpp
     # Server - Core
     src/server/Protocol.h
-    src/server/Utils.h
-    src/server/Utils.cpp
     src/server/WsServer.h
     src/server/WsServer.cpp
     src/server/ClientAuth.h
@@ -130,7 +131,9 @@ add_executable(${PROJECT_NAME}
     src/hardware/Monitor.h
     src/hardware/Monitor.cpp
 )
-target_include_directories(${PROJECT_NAME} PRIVATE src/core src/server src/hardware)
+target_include_directories(${PROJECT_NAME} PRIVATE
+    src/core src/server src/hardware src/config src/logging src/utils
+)
 
 # 4. Enlazar usando los nombres de los objetivos, no rutas a archivos
 target_link_libraries(${PROJECT_NAME} PRIVATE 
@@ -176,9 +179,9 @@ if(BUILD_TESTS)
     enable_testing()
 
     add_executable(run_tests
-        src/server/Utils.cpp
+        src/logging/Logger.cpp
         src/server/ClientAuth.cpp
-        src/core/EnvLoader.cpp
+        src/config/EnvLoader.cpp
         tests/test_protocol.cpp
         tests/test_auth.cpp
         tests/test_env.cpp
@@ -189,6 +192,9 @@ if(BUILD_TESTS)
         src 
         src/core
         src/server
+        src/config
+        src/logging
+        src/utils
         tests
     )
 
