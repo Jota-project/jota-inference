@@ -4,7 +4,7 @@ import json
 import os
 
 async def test():
-    uri = os.environ.get("TEST_URI", "ws://localhost/api/inference/")
+    uri = os.environ.get("TEST_URI", "ws://green-house.local/api/inference/")
     print(f"Connecting to: {uri}")
     # Disable ping to avoid timeout during blocking server operations (model load)
     async with websockets.connect(uri, ping_interval=None, close_timeout=120) as websocket:

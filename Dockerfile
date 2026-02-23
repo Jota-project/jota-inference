@@ -44,8 +44,8 @@ WORKDIR /app
 COPY --from=builder /app/build/InferenceCore .
 # Copiar librerías compartidas de llama.cpp
 COPY --from=builder /app/build/bin/*.so* /app/lib/
-# Copiar el archivo de configuración de clientes por defecto
-COPY --from=builder /app/clients.json .
+# Copiar el archivo de entorno
+COPY --from=builder /app/.env .
 
 # Exponer el puerto del servidor WebSocket (default 3000)
 #
