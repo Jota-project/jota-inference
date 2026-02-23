@@ -1,11 +1,8 @@
 #include "Engine.h"
-#include <iostream>
+#include "LlamaLogger.h"
 #include <vector>
 #include <cstring>
-#include <stdexcept>
 #include <mutex>
-#include <unistd.h>
-#include <fcntl.h>
 
 namespace Core {
 
@@ -13,6 +10,8 @@ namespace Core {
 
     Engine::Engine() {
         std::call_once(backend_init_flag, []() {
+            // Register log callback BEFORE backend init so we capture everything
+            initLlamaLogging();
             llama_backend_init();
         });
     }
@@ -37,22 +36,8 @@ namespace Core {
         mparams.use_mmap = config.use_mmap;
         mparams.use_mlock = config.use_mlock;
 
-        // Silence llama.cpp verbose output (both stdout and stderr)
-        int stdout_backup = dup(STDOUT_FILENO);
-        int stderr_backup = dup(STDERR_FILENO);
-        int devnull = open("/dev/null", O_WRONLY);
-        dup2(devnull, STDOUT_FILENO);
-        dup2(devnull, STDERR_FILENO);
-        close(devnull);
-
-        // Load Model
+        // Load Model (llama.cpp output is now captured by our log callback)
         model = llama_model_load_from_file(config.modelPath.c_str(), mparams);
-        
-        // Restore stdout and stderr
-        dup2(stdout_backup, STDOUT_FILENO);
-        dup2(stderr_backup, STDERR_FILENO);
-        close(stdout_backup);
-        close(stderr_backup);
 
         if (!model) {
             return false;

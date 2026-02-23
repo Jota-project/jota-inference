@@ -1,5 +1,5 @@
 #include "Session.h"
-#include <iostream>
+#include "../server/Utils.h"
 #include <chrono>
 #include <cstring>
 
@@ -26,8 +26,10 @@ namespace Core {
             throw std::runtime_error("Failed to create context for session " + session_id_);
         }
 
-        std::cout << "Created session " << session_id_ 
-                  << " for client " << client_id_ << std::endl;
+        IC_LOG_INFO("Created session", {
+            {"session_id", session_id_},
+            {"client_id", client_id_}
+        });
     }
 
     Session::~Session() {
@@ -35,7 +37,7 @@ namespace Core {
             llama_free(ctx_);
             ctx_ = nullptr;
         }
-        std::cout << "Destroyed session " << session_id_ << std::endl;
+        IC_LOG_INFO("Destroyed session", {{"session_id", session_id_}});
     }
 
     void Session::abort() {
@@ -123,7 +125,7 @@ namespace Core {
         }
 
         if (llama_decode(ctx_, batch) != 0) {
-            std::cerr << "llama_decode failed for session " << session_id_ << std::endl;
+            IC_LOG_ERROR("llama_decode failed (prompt eval)", {{"session_id", session_id_}});
             llama_batch_free(batch);
             llama_sampler_free(smpl);
             state_ = SessionState::ERROR;
@@ -177,8 +179,7 @@ namespace Core {
             n_cur++;
 
             if (llama_decode(ctx_, batch) != 0) {
-                std::cerr << "llama_decode failed during generation for session " 
-                          << session_id_ << std::endl;
+                IC_LOG_ERROR("llama_decode failed during generation", {{"session_id", session_id_}});
                 break;
             }
         }

@@ -105,6 +105,7 @@ add_executable(${PROJECT_NAME}
     src/core/Session.cpp
     src/core/SessionManager.cpp
     src/core/EnvLoader.cpp
+    src/core/LlamaLogger.cpp
     # Server - Core
     src/server/Protocol.h
     src/server/Utils.h

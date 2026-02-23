@@ -1,6 +1,5 @@
 #include "InferenceService.h"
 #include "Utils.h"
-#include <iostream>
 
 namespace Server {
 
@@ -16,7 +15,7 @@ InferenceService::InferenceService(Core::SessionManager* sessionManager, int num
         workerThreads_.emplace_back([this]() { workerLoop(); });
     }
     
-    std::cout << "InferenceService: Started with " << numWorkers << " worker threads" << std::endl;
+    IC_LOG_INFO("InferenceService started", {{"worker_threads", numWorkers}});
 }
 
 InferenceService::~InferenceService() {
@@ -46,7 +45,7 @@ void InferenceService::shutdown() {
         }
     }
     
-    std::cout << "InferenceService: Shutdown complete" << std::endl;
+    IC_LOG_INFO("InferenceService: Shutdown complete");
 }
 
 int InferenceService::getActiveGenerations() const {
@@ -86,7 +85,7 @@ void InferenceService::processTask(Task& task) {
     // Get the session
     auto* session = sessionManager_->getSession(task.session_id);
     if (!session) {
-        std::cerr << "InferenceService: Session not found: " << task.session_id << std::endl;
+        IC_LOG_ERROR("InferenceService: Session not found", {{"session_id", task.session_id}});
         return;
     }
 
