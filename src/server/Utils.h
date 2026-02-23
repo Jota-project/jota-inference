@@ -1,16 +1,18 @@
 #pragma once
 
 #include <string>
-#include <iostream>
 #include <mutex>
-#include <thread>
-#include <chrono>
-#include <iomanip>
-#include <sstream>
 #include <nlohmann/json.hpp>
 
 namespace Server {
 namespace Utils {
+
+enum class LogLevel {
+    DEBUG = 0,
+    INFO,
+    WARN,
+    ERROR
+};
 
 class Logger {
 public:
@@ -19,51 +21,33 @@ public:
         return mtx;
     }
 
-    static void info(const std::string& message, const nlohmann::json& metadata = nullptr) {
-        log("INFO", message, metadata);
+    static LogLevel getMinLogLevel();
+
+    static void debug(const char* file, int line, const std::string& message, const nlohmann::json& metadata = nullptr) {
+        log(LogLevel::DEBUG, "DEBUG", file, line, message, metadata);
     }
 
-    static void warn(const std::string& message, const nlohmann::json& metadata = nullptr) {
-        log("WARN", message, metadata);
+    static void info(const char* file, int line, const std::string& message, const nlohmann::json& metadata = nullptr) {
+        log(LogLevel::INFO, "INFO", file, line, message, metadata);
     }
 
-    static void error(const std::string& message, const nlohmann::json& metadata = nullptr) {
-        log("ERROR", message, metadata);
+    static void warn(const char* file, int line, const std::string& message, const nlohmann::json& metadata = nullptr) {
+        log(LogLevel::WARN, "WARN", file, line, message, metadata);
     }
 
-    static void debug(const std::string& message, const nlohmann::json& metadata = nullptr) {
-        log("DEBUG", message, metadata);
+    static void error(const char* file, int line, const std::string& message, const nlohmann::json& metadata = nullptr) {
+        log(LogLevel::ERROR, "ERROR", file, line, message, metadata);
     }
 
 private:
-    static void log(const std::string& level, const std::string& message, const nlohmann::json& metadata) {
-        auto now = std::chrono::system_clock::now();
-        auto time_t_now = std::chrono::system_clock::to_time_t(now);
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
-
-        std::stringstream ss;
-        ss << std::put_time(std::gmtime(&time_t_now), "%Y-%m-%dT%H:%M:%S") 
-           << '.' << std::setfill('0') << std::setw(3) << ms.count() << 'Z';
-
-        nlohmann::json j;
-        j["timestamp"] = ss.str();
-        j["level"] = level;
-        j["message"] = message;
-        
-        // Getting an integer thread ID
-        j["thread_id"] = std::hash<std::thread::id>{}(std::this_thread::get_id());
-
-        if (!metadata.is_null() && !metadata.empty()) {
-            j["extra"] = metadata;
-        }
-
-        std::string output = j.dump();
-
-        std::lock_guard<std::mutex> lock(getMutex());
-        std::cout << output << std::endl;
-    }
+    static void log(LogLevel levelEnum, const std::string& levelStr, const char* file, int line, const std::string& message, const nlohmann::json& metadata);
 };
 
+// --- Macros for Logging ---
+#define IC_LOG_DEBUG(msg, ...) Server::Utils::Logger::debug(__FILE__, __LINE__, msg, ##__VA_ARGS__)
+#define IC_LOG_INFO(msg, ...)  Server::Utils::Logger::info(__FILE__, __LINE__, msg, ##__VA_ARGS__)
+#define IC_LOG_WARN(msg, ...)  Server::Utils::Logger::warn(__FILE__, __LINE__, msg, ##__VA_ARGS__)
+#define IC_LOG_ERROR(msg, ...) Server::Utils::Logger::error(__FILE__, __LINE__, msg, ##__VA_ARGS__)
 
 // Helper: Validate and clean UTF-8 string to prevent JSON serialization errors
 inline std::string sanitizeUtf8(const std::string& input) {

@@ -18,21 +18,21 @@ unsigned long long getFileSize(const std::string& filename) {
 int main(int argc, char** argv) {
     // 0. Load Environment Variables
     if (!Core::EnvLoader::load()) {
-        Server::Utils::Logger::warn("Failed to load .env file. using system environment or defaults.");
+        IC_LOG_WARN("Failed to load .env file. using system environment or defaults.");
     }
 
     // 0.1 Verify JotaDB Connection (Heartbeat)
-    Server::Utils::Logger::info("JOTADB AUTHENTICATION VERIFICATION started");
+    IC_LOG_INFO("JOTADB AUTHENTICATION VERIFICATION started");
     {
         Server::ClientAuth auth;
-        Server::Utils::Logger::info("Connecting to JotaDB...");
+        IC_LOG_INFO("Connecting to JotaDB...");
         
         if (!auth.verifyConnection()) {
-            Server::Utils::Logger::error("[FATAL] AUTHENTICATION FAILED. InferenceCenter could not authorize with JotaDB. Please check your JOTA_DB_SK and JOTA_DB_URL configuration.");
+            IC_LOG_ERROR("[FATAL] AUTHENTICATION FAILED. InferenceCenter could not authorize with JotaDB. Please check your JOTA_DB_SK and JOTA_DB_URL configuration.");
             return 1;
         }
         
-        Server::Utils::Logger::info("[SUCCESS] AUTHENTICATION VERIFIED. InferenceCenter is authorized with JotaDB.");
+        IC_LOG_INFO("[SUCCESS] AUTHENTICATION VERIFIED. InferenceCenter is authorized with JotaDB.");
     }
 
     std::string modelPath;
@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
     }
     
     if (modelPath.empty()) {
-        Server::Utils::Logger::error("Missing model argument", {
+        IC_LOG_ERROR("Missing model argument", {
             {"usage", std::string("Usage: ") + argv[0] + " --model <path_to_model.gguf> [--prompt \"text\"] [--port 3000] [--gpu-layers N] [--ctx-size 512]"}
         });
         return 1;
@@ -81,10 +81,10 @@ int main(int argc, char** argv) {
     bool monitorInitialized = monitor.init();
     
     if (!monitorInitialized) {
-        Server::Utils::Logger::warn("Failed to initialize Hardware Monitor (NVML).");
+        IC_LOG_WARN("Failed to initialize Hardware Monitor (NVML).");
     } else {
         auto stats = monitor.updateStats();
-        Server::Utils::Logger::info("GPU STATUS", {
+        IC_LOG_INFO("GPU STATUS", {
             {"vram_total_mb", stats.memoryTotal / (1024*1024)},
             {"vram_free_mb",  stats.memoryFree / (1024*1024)},
             {"temp_c",        stats.temp}
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
     // 1. Initialize Engine
     Core::Engine engine;
     
-    Server::Utils::Logger::info("INFERENCE CORE SERVER", {
+    IC_LOG_INFO("INFERENCE CORE SERVER", {
         {"system_info", engine.getSystemInfo()}
     });
 
@@ -110,12 +110,12 @@ int main(int argc, char** argv) {
             if (modelSize > 0) {
                 config.n_gpu_layers = monitor.calculateOptimalGpuLayers(modelSize);
             } else {
-                Server::Utils::Logger::warn("Could not determine model size. Using CPU-only.");
+                IC_LOG_WARN("Could not determine model size. Using CPU-only.");
                 config.n_gpu_layers = 0;
             }
         } else {
             // No monitor, default to CPU-only
-            Server::Utils::Logger::info("Monitor not available. Using CPU-only mode.");
+            IC_LOG_INFO("Monitor not available. Using CPU-only mode.");
             config.n_gpu_layers = 0;
         }
     } else {
@@ -126,12 +126,12 @@ int main(int argc, char** argv) {
     
     // Load model silently
     if (!engine.loadModel(config)) {
-        Server::Utils::Logger::error("[FATAL] MODEL LOADING FAILED", {{"model_path", modelPath}});
+        IC_LOG_ERROR("[FATAL] MODEL LOADING FAILED", {{"model_path", modelPath}});
         monitor.shutdown();
         return 1;
     }
     
-    Server::Utils::Logger::info("MODEL LOADED SUCCESSFULLY", {
+    IC_LOG_INFO("MODEL LOADED SUCCESSFULLY", {
         {"gpu_layers", config.n_gpu_layers},
         {"ctx_size", config.ctx_size}
     });

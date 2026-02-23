@@ -40,7 +40,7 @@ WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
         metricsHandler_
     );
 
-    Utils::Logger::info("WsServer initialized", {{"port", port_}});
+    IC_LOG_INFO("WsServer initialized", {{"port", port_}});
 }
 
 WsServer::~WsServer() {
@@ -55,7 +55,7 @@ WsServer::~WsServer() {
     // Cleanup
     // sessionManager_ is unique_ptr, will be deleted automatically
 
-    Utils::Logger::info("WsServer destroyed");
+    IC_LOG_INFO("WsServer destroyed");
 }
 
 void WsServer::run() {
@@ -76,18 +76,18 @@ void WsServer::run() {
                 
                 // Validate presence of required headers
                 if (client_id.empty() || api_key.empty()) {
-                    Utils::Logger::warn("Client connection rejected: Missing authentication headers");
+                    IC_LOG_WARN("Client connection rejected: Missing authentication headers");
                     res->writeStatus("401 Unauthorized");
                     res->writeHeader("Content-Type", "application/json");
                     res->end("{\"error\":\"Missing X-Client-ID or X-API-Key headers\"}");
                     return;
                 }
                 
-                Utils::Logger::info("Client connecting", {{"client_id", std::string(client_id)}});
+                IC_LOG_INFO("Client connecting", {{"client_id", std::string(client_id)}});
                 
                 // Authenticate via JotaDB
                 if (!clientAuth_.authenticate(std::string(client_id), std::string(api_key))) {
-                    Utils::Logger::warn("Client authentication failed", {{"client_id", std::string(client_id)}});
+                    IC_LOG_WARN("Client authentication failed", {{"client_id", std::string(client_id)}});
                     res->writeStatus("401 Unauthorized");
                     res->writeHeader("Content-Type", "application/json");
                     res->end("{\"error\":\"Invalid credentials\"}");
@@ -112,7 +112,7 @@ void WsServer::run() {
                 auto* data = ws->getUserData();
                 
                 // Client is already authenticated via upgrade handler
-                Utils::Logger::info("Client authenticated", {{"client_id", data->client_id}});
+                IC_LOG_INFO("Client authenticated", {{"client_id", data->client_id}});
                 
                 auto config = clientAuth_.getClientConfig(data->client_id);
                 json response = {
@@ -138,9 +138,9 @@ void WsServer::run() {
             .close = [this](auto* ws, int, std::string_view) {
                 auto* data = ws->getUserData();
                 if (data->authenticated) {
-                    Utils::Logger::info("Client disconnected", {{"client_id", data->client_id}});
+                    IC_LOG_INFO("Client disconnected", {{"client_id", data->client_id}});
                 } else {
-                    Utils::Logger::info("Client disconnected");
+                    IC_LOG_INFO("Client disconnected");
                 }
 
                 // Remove from metrics subscribers
@@ -158,14 +158,14 @@ void WsServer::run() {
         })
         .listen(port_, [this](auto* listenSocket) {
             if (listenSocket) {
-                Utils::Logger::info("WebSocket server listening", {{"port", port_}});
+                IC_LOG_INFO("WebSocket server listening", {{"port", port_}});
             } else {
-                Utils::Logger::error("Failed to listen", {{"port", port_}});
+                IC_LOG_ERROR("Failed to listen", {{"port", port_}});
             }
         })
         .run();
     
-    Utils::Logger::info("Server stopped");
+    IC_LOG_INFO("Server stopped");
 }
 
 } // namespace Server

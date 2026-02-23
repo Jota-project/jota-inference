@@ -107,6 +107,8 @@ add_executable(${PROJECT_NAME}
     src/core/EnvLoader.cpp
     # Server - Core
     src/server/Protocol.h
+    src/server/Utils.h
+    src/server/Utils.cpp
     src/server/WsServer.h
     src/server/WsServer.cpp
     src/server/ClientAuth.h
@@ -173,6 +175,7 @@ if(BUILD_TESTS)
     enable_testing()
 
     add_executable(run_tests
+        src/server/Utils.cpp
         src/server/ClientAuth.cpp
         src/core/EnvLoader.cpp
         tests/test_protocol.cpp
