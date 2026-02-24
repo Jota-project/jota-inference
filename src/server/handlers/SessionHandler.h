@@ -2,8 +2,8 @@
 
 #include "../RequestContext.h"
 #include "../../core/SessionManager.h"
+#include "Logger.h"
 #include <nlohmann/json.hpp>
-#include <iostream>
 
 using json = nlohmann::json;
 
@@ -52,8 +52,10 @@ public:
             };
             ctx.send(response);
             
-            std::cout << "Session created: " << session_id 
-                      << " for client: " << data->client_id << std::endl;
+            IC_LOG_INFO("Session created", {
+                {"session_id", session_id},
+                {"client_id", data->client_id}
+            });
         } else {
             json response = {
                 {"op", Op::SESSION_ERROR},
@@ -112,7 +114,7 @@ public:
             };
             ctx.send(response);
             
-            std::cout << "Session closed: " << session_id << std::endl;
+            IC_LOG_INFO("Session closed", {{"session_id", session_id}});
         } else {
             json response = {
                 {"op", Op::ERROR},

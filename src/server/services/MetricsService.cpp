@@ -1,10 +1,10 @@
 #include "MetricsService.h"
 #include "../handlers/MetricsHandler.h"
 #include "../Protocol.h"
+#include "Logger.h"
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <thread>
-#include <iostream>
 
 using json = nlohmann::json;
 
@@ -35,7 +35,7 @@ void MetricsService::start() {
     // Start metrics thread
     metricsThread_ = std::thread([this]() { metricsLoop(); });
     
-    std::cout << "MetricsService: Started" << std::endl;
+    IC_LOG_INFO("MetricsService started");
 }
 
 void MetricsService::setMetricsHandler(MetricsHandler* handler) {
@@ -56,7 +56,7 @@ void MetricsService::shutdown() {
         metricsThread_.join();
     }
     
-    std::cout << "MetricsService: Shutdown complete" << std::endl;
+    IC_LOG_INFO("MetricsService: Shutdown complete");
 }
 
 void MetricsService::metricsLoop() {

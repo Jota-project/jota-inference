@@ -4,8 +4,11 @@ namespace Core {
 
     // Initializes the llama.cpp log callback.
     // Must be called BEFORE llama_backend_init().
-    // Redirects all llama.cpp output through the IC_LOG system,
-    // with special handling for KV Cache exhaustion errors.
     void initLlamaLogging();
+
+    // Returns true (and clears the flag) if llama.cpp recently 
+    // reported a "failed to find a memory slot" error.
+    // Used by Session::generate() to throw MemoryFullException.
+    bool wasMemorySlotError();
 
 }

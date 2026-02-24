@@ -1,5 +1,6 @@
 #include "Session.h"
 #include "Exceptions.h"
+#include "LlamaLogger.h"
 #include "Logger.h"
 #include <chrono>
 #include <cstring>
@@ -146,6 +147,9 @@ namespace Core {
         if (llama_decode(ctx_, batch) != 0) {
             state_ = SessionState::ERROR;
             IC_LOG_ERROR("llama_decode failed (prompt eval)", {{"session_id", session_id_}});
+            if (wasMemorySlotError()) {
+                throw MemoryFullException("KV Cache full during prompt evaluation", session_id_);
+            }
             throw InferenceBackendException("llama_decode failed during prompt evaluation", session_id_);
         }
 
@@ -186,6 +190,9 @@ namespace Core {
             if (llama_decode(ctx_, batch) != 0) {
                 state_ = SessionState::ERROR;
                 IC_LOG_ERROR("llama_decode failed during generation", {{"session_id", session_id_}});
+                if (wasMemorySlotError()) {
+                    throw MemoryFullException("KV Cache full during token generation", session_id_);
+                }
                 throw InferenceBackendException("llama_decode failed during token generation", session_id_);
             }
         }

@@ -1,7 +1,6 @@
 #include "WsServer.h"
 #include "Logger.h"
 #include <nlohmann/json.hpp>
-#include <iostream>
 
 using json = nlohmann::json;
 

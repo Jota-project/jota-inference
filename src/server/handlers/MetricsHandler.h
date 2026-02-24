@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../RequestContext.h"
+#include "Logger.h"
 #include <nlohmann/json.hpp>
 #include <set>
 #include <mutex>
-#include <iostream>
 
 using json = nlohmann::json;
 
@@ -50,7 +50,7 @@ public:
         };
         ctx.send(response);
         
-        std::cout << "Client subscribed to metrics: " << data->client_id << std::endl;
+        IC_LOG_DEBUG("Client subscribed to metrics", {{"client_id", data->client_id}});
     }
     
     /**
@@ -83,7 +83,7 @@ public:
         };
         ctx.send(response);
         
-        std::cout << "Client unsubscribed from metrics: " << data->client_id << std::endl;
+        IC_LOG_DEBUG("Client unsubscribed from metrics", {{"client_id", data->client_id}});
     }
     
     /**

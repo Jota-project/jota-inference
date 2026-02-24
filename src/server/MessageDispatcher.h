@@ -6,9 +6,9 @@
 #include "handlers/SessionHandler.h"
 #include "handlers/InferenceHandler.h"
 #include "handlers/MetricsHandler.h"
+#include "Logger.h"
 #include <nlohmann/json.hpp>
 #include <memory>
-#include <iostream>
 
 using json = nlohmann::json;
 
@@ -106,7 +106,7 @@ private:
      * Send error response to client
      */
     void handleError(RequestContext& ctx, const std::string& error) {
-        std::cerr << "MessageDispatcher error: " << error << std::endl;
+        IC_LOG_WARN("MessageDispatcher error", {{"error", error}});
         
         json response = {
             {"op", Op::ERROR},

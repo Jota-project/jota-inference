@@ -1,8 +1,8 @@
 #include "SessionManager.h"
+#include "Logger.h"
 #include <random>
 #include <sstream>
 #include <iomanip>
-#include <iostream>
 #include <algorithm>
 
 namespace Core {
@@ -44,7 +44,7 @@ namespace Core {
 
         // Check if client exists and get their config
         if (!client_auth_ || !client_auth_->clientExists(client_id)) {
-            std::cerr << "Cannot create session: client " << client_id << " not found" << std::endl;
+            IC_LOG_ERROR("Cannot create session: client not found", {{"client_id", client_id}});
             return "";
         }
 
@@ -55,8 +55,10 @@ namespace Core {
         int current_count = (it != client_sessions_.end()) ? it->second.size() : 0;
         
         if (current_count >= client_config.max_sessions) {
-            std::cerr << "Client " << client_id << " has reached max sessions limit (" 
-                      << client_config.max_sessions << ")" << std::endl;
+            IC_LOG_WARN("Client session limit reached", {
+                {"client_id", client_id},
+                {"max_sessions", client_config.max_sessions}
+            });
             return "";
         }
 
@@ -74,14 +76,16 @@ namespace Core {
             // Track client -> sessions mapping
             client_sessions_[client_id].push_back(session_id);
 
-            std::cout << "Created session " << session_id << " for client " << client_id 
-                      << " (" << (current_count + 1) << "/" << client_config.max_sessions << ")" 
-                      << std::endl;
+            IC_LOG_INFO("Session created", {
+                {"session_id", session_id},
+                {"client_id", client_id},
+                {"session_count", std::to_string(current_count + 1) + "/" + std::to_string(client_config.max_sessions)}
+            });
 
             return session_id;
 
         } catch (const std::exception& e) {
-            std::cerr << "Failed to create session: " << e.what() << std::endl;
+            IC_LOG_ERROR("Failed to create session", {{"error", std::string(e.what())}});
             return "";
         }
     }
@@ -124,7 +128,7 @@ namespace Core {
             }
         }
 
-        std::cout << "Closed session " << session_id << " for client " << client_id << std::endl;
+        IC_LOG_INFO("Session closed", {{"session_id", session_id}, {"client_id", client_id}});
         return true;
     }
 
@@ -156,8 +160,10 @@ namespace Core {
 
         client_sessions_.erase(it);
 
-        std::cout << "Closed " << session_ids.size() << " session(s) for client " 
-                  << client_id << std::endl;
+        IC_LOG_INFO("Client sessions closed", {
+            {"client_id", client_id},
+            {"count", (int)session_ids.size()}
+        });
     }
 
     void SessionManager::closeAllSessions() {
@@ -168,7 +174,7 @@ namespace Core {
         client_sessions_.clear();
 
         if (count > 0) {
-            std::cout << "Closed all " << count << " session(s)" << std::endl;
+            IC_LOG_INFO("All sessions closed", {{"count", count}});
         }
     }
 

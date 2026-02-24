@@ -1,5 +1,5 @@
 #include "Monitor.h"
-#include <iostream>
+#include "Logger.h"
 
 namespace Hardware {
 
@@ -16,7 +16,7 @@ namespace Hardware {
 #ifdef USE_CUDA
         nvmlReturn_t result = nvmlInit();
         if (NVML_SUCCESS != result) {
-            std::cerr << "Failed to initialize NVML: " << nvmlErrorString(result) << std::endl;
+            IC_LOG_ERROR("Failed to initialize NVML", {{"error", std::string(nvmlErrorString(result))}});
             return false;
         }
 
@@ -24,7 +24,7 @@ namespace Hardware {
         // Assuming single GPU setup (GTX 1060)
         result = nvmlDeviceGetHandleByIndex(0, &device);
         if (NVML_SUCCESS != result) {
-            std::cerr << "Failed to get device handle: " << nvmlErrorString(result) << std::endl;
+            IC_LOG_ERROR("Failed to get GPU device handle", {{"error", std::string(nvmlErrorString(result))}});
             nvmlShutdown();
             return false;
         }
@@ -32,13 +32,13 @@ namespace Hardware {
         // Verify device name
         char name[64];
         if (NVML_SUCCESS == nvmlDeviceGetName(device, name, sizeof(name))) {
-            std::cout << "Monitor initialized for: " << name << std::endl;
+            IC_LOG_INFO("GPU Monitor initialized", {{"gpu_name", std::string(name)}});
         }
 
         initialized = true;
         return true;
 #else
-        std::cout << "Monitor: CUDA support not compiled. Running in CPU-only mode." << std::endl;
+        IC_LOG_INFO("CUDA support not compiled. Running in CPU-only mode.");
         return false;
 #endif
     }
@@ -91,12 +91,15 @@ namespace Hardware {
         // Throttle Check
         if (currentStats.temp >= MAX_TEMP_SAFE) {
             if (!currentStats.throttle) {
-                std::cerr << "WARNING: GPU Temperature " << currentStats.temp << "C exceeds limit " << MAX_TEMP_SAFE << "C. Throttling..." << std::endl;
+                IC_LOG_WARN("GPU Temperature exceeds limit", {
+                    {"temp", (int)currentStats.temp},
+                    {"max_safe", (int)MAX_TEMP_SAFE}
+                });
             }
             currentStats.throttle = true;
         } else {
             if (currentStats.throttle) {
-                std::cout << "INFO: GPU Temperature normalized (" << currentStats.temp << "C)." << std::endl;
+                IC_LOG_INFO("GPU Temperature normalized", {{"temp", (int)currentStats.temp}});
             }
             currentStats.throttle = false;
         }
@@ -112,7 +115,7 @@ namespace Hardware {
     int Monitor::calculateOptimalGpuLayers(unsigned long long modelSizeBytes) {
 #ifdef USE_CUDA
         if (!initialized) {
-            std::cerr << "Monitor not initialized. Cannot calculate GPU layers." << std::endl;
+            IC_LOG_ERROR("Monitor not initialized. Cannot calculate GPU layers.");
             return -1;
         }
 
@@ -128,23 +131,25 @@ namespace Hardware {
         if (currentStats.memoryFree > SAFETY_BUFFER_BYTES) {
             availableVRAM = currentStats.memoryFree - SAFETY_BUFFER_BYTES;
         } else {
-            std::cerr << "WARNING: Insufficient VRAM available. Free: " 
-                      << (currentStats.memoryFree / (1024*1024)) << " MB" << std::endl;
+            IC_LOG_WARN("Insufficient VRAM available", {
+                {"free_mb", (int)(currentStats.memoryFree / (1024*1024))}
+            });
             return 0; // No GPU layers
         }
 
-        std::cout << "\n--- Smart Split Computing ---" << std::endl;
-        std::cout << "VRAM Total: " << (currentStats.memoryTotal / (1024*1024)) << " MB" << std::endl;
-        std::cout << "VRAM Free:  " << (currentStats.memoryFree / (1024*1024)) << " MB" << std::endl;
-        std::cout << "Safety Buffer: " << SAFETY_BUFFER_MB << " MB" << std::endl;
-        std::cout << "Available for Model: " << (availableVRAM / (1024*1024)) << " MB" << std::endl;
+        IC_LOG_INFO("Smart Split Computing", {
+            {"vram_total_mb", (int)(currentStats.memoryTotal / (1024*1024))},
+            {"vram_free_mb", (int)(currentStats.memoryFree / (1024*1024))},
+            {"safety_buffer_mb", (int)SAFETY_BUFFER_MB},
+            {"available_mb", (int)(availableVRAM / (1024*1024))}
+        });
 
         // If entire model fits in VRAM, use all layers (return 99 = max)
         if (modelSizeBytes <= availableVRAM) {
-            std::cout << "Model fits entirely in GPU (" << (modelSizeBytes / (1024*1024)) 
-                      << " MB). Using all layers." << std::endl;
-            std::cout << "-----------------------------\n" << std::endl;
-            return 99; // Max layers
+            IC_LOG_INFO("Model fits entirely in GPU", {
+                {"model_size_mb", (int)(modelSizeBytes / (1024*1024))}
+            });
+            return 99;
         }
 
         // Estimate layers based on proportion
@@ -166,16 +171,16 @@ namespace Hardware {
             recommendedLayers = 1;
         }
 
-        std::cout << "Model size: " << (modelSizeBytes / (1024*1024)) << " MB" << std::endl;
-        std::cout << "Estimated total layers: " << estimatedTotalLayers << std::endl;
-        std::cout << "Recommended GPU layers: " << recommendedLayers 
-                  << " (" << (int)(proportion * 100) << "% of model)" << std::endl;
-        std::cout << "Remaining layers will use CPU" << std::endl;
-        std::cout << "-----------------------------\n" << std::endl;
+        IC_LOG_INFO("GPU layer split calculated", {
+            {"model_size_mb", (int)(modelSizeBytes / (1024*1024))},
+            {"estimated_total_layers", estimatedTotalLayers},
+            {"recommended_gpu_layers", recommendedLayers},
+            {"gpu_percent", (int)(proportion * 100)}
+        });
 
         return recommendedLayers;
 #else
-        std::cout << "CUDA not compiled. Cannot use GPU layers." << std::endl;
+        IC_LOG_INFO("CUDA not compiled. Cannot use GPU layers.");
         return 0; // CPU-only
 #endif
     }

@@ -1,6 +1,6 @@
 #include "ClientAuth.h"
 #include "EnvLoader.h"
-#include <iostream>
+#include "Logger.h"
 #include <cstdlib>
 #include <httplib.h>
 
@@ -17,9 +17,9 @@ namespace Server {
         jota_db_sk_ = Core::EnvLoader::get("JOTA_DB_SK", "");
         
 
-        std::cout << "[Auth] JotaDB URL configured: " << jota_db_url_ << std::endl;
+        IC_LOG_INFO("JotaDB URL configured", {{"url", jota_db_url_}});
         if (jota_db_sk_.empty() || jota_db_usr_.empty()) {
-            std::cerr << "[Auth] WARNING: JOTA_DB_SK or JOTA_DB_USR is not set! JotaDB authentication requests may fail." << std::endl;
+            IC_LOG_WARN("JOTA_DB_SK or JOTA_DB_USR is not set. JotaDB auth requests may fail.");
         }
     }
 
@@ -35,18 +35,16 @@ namespace Server {
                 if (elapsed < 15) {
                     // Constant-time check for key match just to be safe (though cache should be trusted if owned)
                     if (it->second.api_key == api_key) {
-                        std::cout << "[Auth] Cache hit for " << client_id 
-                                  << " (Validated " << elapsed << " mins ago)" << std::endl;
+                        IC_LOG_DEBUG("Auth cache hit", {{"client_id", client_id}, {"age_min", (int)elapsed}});
                         return true;
                     }
                 } else {
-                    std::cout << "[Auth] Cache expired for " << client_id 
-                              << ". Re-validating..." << std::endl;
+                    IC_LOG_DEBUG("Auth cache expired, re-validating", {{"client_id", client_id}});
                 }
             }
         }
 
-        std::cout << "[Auth] Validating " << client_id << " via JotaDB..." << std::endl;
+        IC_LOG_DEBUG("Validating client via JotaDB", {{"client_id", client_id}});
 
         // 2. Parse and Sanitize URL
         std::string url = jota_db_url_;
@@ -113,8 +111,10 @@ namespace Server {
                 auto json_res = json::parse(res->body);
                 
                 if (json_res.contains("error")) {
-                     std::cout << "[Auth] Validation failed for " << client_id << ": " 
-                               << json_res["error"] << std::endl;
+                     IC_LOG_WARN("Auth validation failed", {
+                         {"client_id", client_id},
+                         {"error", json_res["error"].dump()}
+                     });
                      return false;
                 }
 
@@ -140,21 +140,26 @@ namespace Server {
                     
                     client_cache_[client_id] = cfg;
                     
-                    std::cout << "[Auth] Validation success for " << client_id << " (max_sessions: " << cfg.max_sessions << ")" << std::endl;
+                    IC_LOG_INFO("Auth validation success", {
+                        {"client_id", client_id},
+                        {"max_sessions", cfg.max_sessions}
+                    });
                     return true;
                 }
                 
-                std::cout << "[Auth] Validation failed (authorized=false) for " << client_id << std::endl;
+                IC_LOG_WARN("Auth validation failed (authorized=false)", {{"client_id", client_id}});
                 return false;
 
             } catch (const std::exception& e) {
-                std::cerr << "[Auth] Error parsing JotaDB response: " << e.what() << std::endl;
+                IC_LOG_ERROR("Error parsing JotaDB response", {{"error", std::string(e.what())}});
                 return false;
             }
         } else {
             auto err = res.error();
-            std::cerr << "[Auth] JotaDB request failed. Status: " << (res ? std::to_string(res->status) : "Connection Error") 
-                      << " Error: " << err << std::endl;
+            IC_LOG_ERROR("JotaDB request failed", {
+                {"status", res ? std::to_string(res->status) : "Connection Error"},
+                {"error", std::to_string(static_cast<int>(err))}
+            });
             return false;
         }
     }
@@ -207,23 +212,23 @@ namespace Server {
         if (!jota_db_sk_.empty()) {
             headers.emplace("Authorization", "Bearer " + jota_db_sk_);
         } else {
-            std::cerr << "[Auth] WARNING: JOTA_DB_SK is empty. Authorization will likely fail." << std::endl;
+            IC_LOG_WARN("JOTA_DB_SK is empty. Authorization will likely fail.");
         }
         
         auto res = cli.Get(request_path.c_str(), headers);
         
         if (res && res->status == 200) {
-             std::cout << "[Auth] JotaDB Connection Verified (Heartbeat OK)" << std::endl;
+             IC_LOG_INFO("JotaDB Connection Verified (Heartbeat OK)");
              return true;
         }
         
         if (res) {
-             std::cerr << "[Auth] Connection Failed. Status: " << res->status << std::endl;
+             IC_LOG_ERROR("JotaDB connection failed", {{"status", res->status}});
              if (res->status == 401 || res->status == 403) {
-                 std::cerr << "[FATAL] Authorization Error: Check JOTA_DB_SK" << std::endl;
+                 IC_LOG_ERROR("Authorization Error: Check JOTA_DB_SK");
              }
         } else {
-             std::cerr << "[Auth] Connection Failed. Network Error: " << res.error() << std::endl;
+             IC_LOG_ERROR("JotaDB connection failed", {{"error", std::to_string(static_cast<int>(res.error()))}});
         }
         
         return false;

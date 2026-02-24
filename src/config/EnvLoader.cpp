@@ -1,7 +1,7 @@
 #include "EnvLoader.h"
+#include "Logger.h"
 #include <fstream>
 #include <sstream>
-#include <iostream>
 #include <cstdlib>
 #include <algorithm>
 
@@ -28,12 +28,12 @@ namespace Core {
             env_path = "../.env";
             file.open(env_path);
             if (!file.is_open()) {
-                std::cerr << "[EnvLoader] .env file not found in current or parent directory." << std::endl;
+                IC_LOG_WARN(".env file not found in current or parent directory.");
                 return false;
             }
         }
         
-        std::cout << "[EnvLoader] Loading configuration from " << env_path << std::endl;
+        IC_LOG_DEBUG("Loading configuration", {{"path", env_path}});
 
         std::string line;
         while (std::getline(file, line)) {
@@ -65,7 +65,7 @@ namespace Core {
             }
         }
         
-        std::cout << "[EnvLoader] Loaded .env configuration." << std::endl;
+        IC_LOG_INFO("Loaded .env configuration");
         return true;
     }
 
