@@ -1,6 +1,7 @@
 #include "InferenceService.h"
 #include "Logger.h"
 #include "StringUtils.h"
+#include "Exceptions.h"
 
 namespace Server {
 
@@ -87,33 +88,58 @@ void InferenceService::processTask(Task& task) {
     auto* session = sessionManager_->getSession(task.session_id);
     if (!session) {
         IC_LOG_ERROR("InferenceService: Session not found", {{"session_id", task.session_id}});
+        if (task.onError) {
+            task.onError(task.session_id, "Session not found");
+        }
         return;
     }
 
     activeGenerations_++;
 
-    // Execute inference with token callback
-    auto metrics = session->generate(task.params.prompt, [&task](const std::string& token) {
-        // Sanitize UTF-8 to prevent JSON serialization errors
-        std::string validToken = Utils::sanitizeUtf8(token);
-        
-        // Call user callback
-        if (task.onToken) {
-            task.onToken(task.session_id, validToken);
+    try {
+        // Execute inference with token callback
+        auto metrics = session->generate(task.params.prompt, [&task](const std::string& token) {
+            // Sanitize UTF-8 to prevent JSON serialization errors
+            std::string validToken = Utils::sanitizeUtf8(token);
+            
+            // Call user callback
+            if (task.onToken) {
+                task.onToken(task.session_id, validToken);
+            }
+            
+            return true; // Continue generation
+        });
+
+        // Store metrics for broadcasting
+        {
+            std::lock_guard<std::mutex> lock(metricsMutex_);
+            lastMetrics_ = metrics;
         }
-        
-        return true; // Continue generation
-    });
 
-    // Store metrics for broadcasting
-    {
-        std::lock_guard<std::mutex> lock(metricsMutex_);
-        lastMetrics_ = metrics;
-    }
+        // Call completion callback
+        if (task.onComplete) {
+            task.onComplete(task.session_id, metrics);
+        }
 
-    // Call completion callback
-    if (task.onComplete) {
-        task.onComplete(task.session_id, metrics);
+    } catch (const Core::InferenceCenterException& e) {
+        IC_LOG_ERROR("Inference failed", {
+            {"session_id", task.session_id},
+            {"error", e.what()},
+            {"error_type", "InferenceCenterException"}
+        });
+        if (task.onError) {
+            task.onError(task.session_id, e.what());
+        }
+
+    } catch (const std::exception& e) {
+        IC_LOG_ERROR("Unexpected error during inference", {
+            {"session_id", task.session_id},
+            {"error", e.what()},
+            {"error_type", "std::exception"}
+        });
+        if (task.onError) {
+            task.onError(task.session_id, "Internal server error");
+        }
     }
     
     activeGenerations_--;

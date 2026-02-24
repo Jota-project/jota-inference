@@ -1,4 +1,5 @@
 #include "Session.h"
+#include "Exceptions.h"
 #include "Logger.h"
 #include <chrono>
 #include <cstring>
@@ -12,7 +13,7 @@ namespace Core {
         : session_id_(session_id), client_id_(client_id), model_(model) {
         
         if (!model_) {
-            throw std::runtime_error("Cannot create session with null model");
+            throw InferenceBackendException("Cannot create session with null model", session_id_);
         }
 
         // Create context for this session
@@ -23,7 +24,7 @@ namespace Core {
         
         ctx_ = llama_init_from_model(model_, cparams);
         if (!ctx_) {
-            throw std::runtime_error("Failed to create context for session " + session_id_);
+            throw InferenceBackendException("Failed to create context for session " + session_id_, session_id_);
         }
 
         IC_LOG_INFO("Created session", {
@@ -45,7 +46,6 @@ namespace Core {
     }
 
     std::vector<llama_token> Session::tokenize(const std::string& text, bool add_bos) {
-        // Upper limit for the number of tokens
         int n_tokens_max = text.length() + (add_bos ? 1 : 0) + 1;
         std::vector<llama_token> tokens(n_tokens_max);
         
@@ -80,12 +80,31 @@ namespace Core {
         return std::string(buf, n);
     }
 
+    // --- RAII Guards for llama.cpp resources ---
+
+    struct BatchGuard {
+        llama_batch batch;
+        BatchGuard(int n_tokens, int embd, int n_seq_max)
+            : batch(llama_batch_init(n_tokens, embd, n_seq_max)) {}
+        ~BatchGuard() { llama_batch_free(batch); }
+        BatchGuard(const BatchGuard&) = delete;
+        BatchGuard& operator=(const BatchGuard&) = delete;
+    };
+
+    struct SamplerGuard {
+        struct llama_sampler* smpl;
+        SamplerGuard(struct llama_sampler* s) : smpl(s) {}
+        ~SamplerGuard() { if (smpl) llama_sampler_free(smpl); }
+        SamplerGuard(const SamplerGuard&) = delete;
+        SamplerGuard& operator=(const SamplerGuard&) = delete;
+    };
+
     Metrics Session::generate(const std::string& prompt, TokenCallback callback) {
         Metrics metrics;
         
         if (!ctx_) {
             state_ = SessionState::ERROR;
-            return metrics;
+            throw InferenceBackendException("Session context is null", session_id_);
         }
 
         state_ = SessionState::GENERATING;
@@ -100,13 +119,14 @@ namespace Core {
         // 1. Tokenize
         std::vector<llama_token> tokens_list = tokenize(prompt, true);
 
-        // 2. Prepare Sampler
+        // 2. Prepare Sampler (RAII)
         auto sparams = llama_sampler_chain_default_params();
-        struct llama_sampler* smpl = llama_sampler_chain_init(sparams);
-        llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
+        SamplerGuard samplerGuard(llama_sampler_chain_init(sparams));
+        llama_sampler_chain_add(samplerGuard.smpl, llama_sampler_init_greedy());
 
-        // 3. Prepare Batch
-        llama_batch batch = llama_batch_init(std::max((int)tokens_list.size(), 1), 0, 1);
+        // 3. Prepare Batch (RAII)
+        BatchGuard batchGuard(std::max((int)tokens_list.size(), 1), 0, 1);
+        auto& batch = batchGuard.batch;
 
         // Load prompt
         batch.n_tokens = 0;
@@ -119,17 +139,14 @@ namespace Core {
             batch.n_tokens++;
         }
         
-        // Precise logits for the last token
         if (batch.n_tokens > 0) {
             batch.logits[batch.n_tokens - 1] = true;
         }
 
         if (llama_decode(ctx_, batch) != 0) {
-            IC_LOG_ERROR("llama_decode failed (prompt eval)", {{"session_id", session_id_}});
-            llama_batch_free(batch);
-            llama_sampler_free(smpl);
             state_ = SessionState::ERROR;
-            return metrics;
+            IC_LOG_ERROR("llama_decode failed (prompt eval)", {{"session_id", session_id_}});
+            throw InferenceBackendException("llama_decode failed during prompt evaluation", session_id_);
         }
 
         // 4. Generation Loop
@@ -137,50 +154,39 @@ namespace Core {
         const llama_vocab* vocab = llama_model_get_vocab(model_);
 
         while (true) {
-            // Check abort
-            if (abort_flag_) {
-                break;
-            }
+            if (abort_flag_) break;
 
-            // Sample
-            llama_token new_token_id = llama_sampler_sample(smpl, ctx_, -1);
-            
-            // Accept/Callbacks
-            llama_sampler_accept(smpl, new_token_id);
+            llama_token new_token_id = llama_sampler_sample(samplerGuard.smpl, ctx_, -1);
+            llama_sampler_accept(samplerGuard.smpl, new_token_id);
 
-            // Time to First Token
             if (is_first_token) {
                 auto now = std::chrono::high_resolution_clock::now();
                 metrics.ttft_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
                 is_first_token = false;
             }
 
-            if (llama_vocab_is_eog(vocab, new_token_id)) {
-                break;
-            }
+            if (llama_vocab_is_eog(vocab, new_token_id)) break;
 
             std::string piece = tokenToPiece(new_token_id);
             metrics.tokens_generated++;
 
             if (callback) {
-                if (!callback(piece)) break; // User aborted
+                if (!callback(piece)) break;
             }
 
-            // Prepare next batch for single token
             batch.n_tokens = 0;
-            
             batch.token[0] = new_token_id;
             batch.pos[0] = n_cur;
             batch.n_seq_id[0] = 1;
             batch.seq_id[0][0] = 0;
             batch.logits[0] = true;
             batch.n_tokens = 1;
-            
             n_cur++;
 
             if (llama_decode(ctx_, batch) != 0) {
+                state_ = SessionState::ERROR;
                 IC_LOG_ERROR("llama_decode failed during generation", {{"session_id", session_id_}});
-                break;
+                throw InferenceBackendException("llama_decode failed during token generation", session_id_);
             }
         }
         
@@ -191,10 +197,7 @@ namespace Core {
             metrics.tps = (double)metrics.tokens_generated / (metrics.total_time_ms / 1000.0);
         }
 
-        // Cleanup
-        llama_batch_free(batch);
-        llama_sampler_free(smpl);
-        
+        // BatchGuard & SamplerGuard clean up automatically
         state_ = SessionState::IDLE;
         return metrics;
     }

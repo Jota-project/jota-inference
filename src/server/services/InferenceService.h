@@ -29,6 +29,10 @@ public:
     // Called from worker thread - caller must handle thread-safety
     using CompletionCallback = std::function<void(const std::string& session_id, const Core::Metrics& metrics)>;
     
+    // Error callback: called if inference throws an exception
+    // Called from worker thread - caller must handle thread-safety
+    using ErrorCallback = std::function<void(const std::string& session_id, const std::string& error_message)>;
+    
     /**
      * Task submitted for inference execution
      */
@@ -37,6 +41,7 @@ public:
         InferenceParams params;
         TokenCallback onToken;
         CompletionCallback onComplete;
+        ErrorCallback onError;
     };
     
     /**

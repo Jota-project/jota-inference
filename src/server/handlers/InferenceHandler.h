@@ -2,8 +2,8 @@
 
 #include "../RequestContext.h"
 #include "../services/InferenceService.h"
+#include "Logger.h"
 #include <nlohmann/json.hpp>
-#include <iostream>
 
 using json = nlohmann::json;
 
@@ -94,17 +94,31 @@ public:
             ctx.send(msg);
         };
         
+        auto onError = [ctx, session_id](const std::string& sid, const std::string& error_msg) {
+            json msg = {
+                {"op", Op::ERROR},
+                {"session_id", sid},
+                {"error", error_msg}
+            };
+            try {
+                ctx.send(msg);
+            } catch (...) {
+                // WebSocket send failed — client already disconnected, nothing to do
+            }
+        };
+        
         // Enqueue task to InferenceService
         InferenceService::Task task{
             session_id,
             params,
             onToken,
-            onComplete
+            onComplete,
+            onError
         };
         
         inferenceService_->enqueueTask(std::move(task));
         
-        std::cout << "Inference enqueued for session: " << session_id << std::endl;
+        IC_LOG_INFO("Inference enqueued", {{"session_id", session_id}});
     }
     
     /**
@@ -146,7 +160,10 @@ public:
         };
         ctx.send(response);
         
-        std::cout << "Abort requested for session " << session_id << ": " << (success ? "Success" : "Failed") << std::endl;
+        IC_LOG_INFO("Abort requested", {
+            {"session_id", session_id},
+            {"status", success ? "aborted" : "not_found"}
+        });
     }
 
 private:
