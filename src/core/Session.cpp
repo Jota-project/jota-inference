@@ -100,7 +100,8 @@ namespace Core {
         SamplerGuard& operator=(const SamplerGuard&) = delete;
     };
 
-    Metrics Session::generate(const std::string& prompt, TokenCallback callback) {
+    Metrics Session::generate(const std::string& prompt, TokenCallback callback,
+                               float temp, float top_p, int max_tokens) {
         Metrics metrics;
         
         if (!ctx_) {
@@ -120,10 +121,19 @@ namespace Core {
         // 1. Tokenize
         std::vector<llama_token> tokens_list = tokenize(prompt, true);
 
-        // 2. Prepare Sampler (RAII)
+        // 2. Prepare Sampler (RAII) — dynamic chain based on temp
         auto sparams = llama_sampler_chain_default_params();
         SamplerGuard samplerGuard(llama_sampler_chain_init(sparams));
-        llama_sampler_chain_add(samplerGuard.smpl, llama_sampler_init_greedy());
+        
+        if (temp <= 0.0f) {
+            // Deterministic: greedy sampling
+            llama_sampler_chain_add(samplerGuard.smpl, llama_sampler_init_greedy());
+        } else {
+            // Stochastic: top_p → temperature → distribution
+            llama_sampler_chain_add(samplerGuard.smpl, llama_sampler_init_top_p(top_p, 1));
+            llama_sampler_chain_add(samplerGuard.smpl, llama_sampler_init_temp(temp));
+            llama_sampler_chain_add(samplerGuard.smpl, llama_sampler_init_dist(0));
+        }
 
         // 3. Prepare Batch (RAII)
         BatchGuard batchGuard(std::max((int)tokens_list.size(), 1), 0, 1);
@@ -173,6 +183,12 @@ namespace Core {
 
             std::string piece = tokenToPiece(new_token_id);
             metrics.tokens_generated++;
+
+            // Enforce max_tokens limit
+            if (max_tokens > 0 && metrics.tokens_generated >= max_tokens) {
+                if (callback) callback(piece);
+                break;
+            }
 
             if (callback) {
                 if (!callback(piece)) break;

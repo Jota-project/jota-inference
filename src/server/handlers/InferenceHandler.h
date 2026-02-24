@@ -54,21 +54,9 @@ public:
         }
         
         std::string session_id = payload["session_id"];
-        std::string prompt = payload["prompt"];
         
-        // Parse inference parameters
-        InferenceParams params;
-        params.prompt = prompt;
-        
-        if (payload.contains("params")) {
-            auto p = payload["params"];
-            if (p.contains("temp")) {
-                params.temp = p["temp"];
-            }
-            if (p.contains("max_tokens")) {
-                params.max_tokens = p["max_tokens"];
-            }
-        }
+        // Parse all inference parameters (mode, temp, top_p, max_tokens, system_prompt, grammar)
+        InferenceParams params = parseInfer(payload);
         
         // Create callbacks that use RequestContext
         auto onToken = [ctx, session_id](const std::string& sid, const std::string& token) {

@@ -41,18 +41,26 @@ namespace Server {
     struct InferenceParams {
         std::string session_id;
         std::string prompt;
+        std::string mode;           // Profile: "instant", "balanced", "creative"
+        std::string system_prompt;  // Prepended to prompt (set by profile or client)
+        std::string grammar;       // Optional GBNF grammar constraint
         float temp = 0.7f;
-        int max_tokens = -1;
+        float top_p = 0.9f;
+        int max_tokens = -1;       // -1 = use profile/model default
     };
 
     inline InferenceParams parseInfer(const json& payload) {
         InferenceParams p;
         if (payload.contains("session_id")) p.session_id = payload["session_id"].get<std::string>();
-        if (payload.contains("prompt")) p.prompt = payload["prompt"].get<std::string>();
+        if (payload.contains("prompt"))     p.prompt = payload["prompt"].get<std::string>();
+        if (payload.contains("mode"))       p.mode = payload["mode"].get<std::string>();
+        if (payload.contains("grammar"))    p.grammar = payload["grammar"].get<std::string>();
         if (payload.contains("params")) {
             auto& params = payload["params"];
-            if (params.contains("temp")) p.temp = params["temp"].get<float>();
-            if (params.contains("max_tokens")) p.max_tokens = params["max_tokens"].get<int>();
+            if (params.contains("temp"))          p.temp = params["temp"].get<float>();
+            if (params.contains("top_p"))         p.top_p = params["top_p"].get<float>();
+            if (params.contains("max_tokens"))    p.max_tokens = params["max_tokens"].get<int>();
+            if (params.contains("system_prompt")) p.system_prompt = params["system_prompt"].get<std::string>();
         }
         return p;
     }
