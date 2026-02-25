@@ -2,6 +2,7 @@
 
 #include "Session.h"
 #include "ClientAuth.h"
+#include "../server/Protocol.h"
 #include <string>
 #include <unordered_map>
 #include <mutex>
@@ -26,6 +27,9 @@ namespace Core {
 
         // Close a specific session
         bool closeSession(const std::string& session_id);
+
+        // Set context for a session (chat history, etc.)
+        bool setSessionContext(const std::string& session_id, Server::SessionContext ctx);
 
         // Abort specific session generation
         bool abortSession(const std::string& session_id);

@@ -69,6 +69,9 @@ public:
             else if (op == Op::CREATE_SESSION) {
                 sessionHandler_->handleCreate(ctx, data);
             }
+            else if (op == Op::SET_CONTEXT) {
+                sessionHandler_->handleSetContext(ctx, data);
+            }
             else if (op == Op::CLOSE_SESSION) {
                 sessionHandler_->handleClose(ctx, data);
             }

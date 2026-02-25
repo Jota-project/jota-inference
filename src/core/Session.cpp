@@ -46,6 +46,20 @@ namespace Core {
         abort_flag_ = true;
     }
 
+    void Session::setContext(Server::SessionContext ctx) {
+        std::lock_guard<std::mutex> lock(context_mutex_);
+        context_ = std::move(ctx);
+        IC_LOG_INFO("Session context set", {
+            {"session_id", session_id_},
+            {"messages", (int)context_.messages.size()}
+        });
+    }
+
+    Server::SessionContext Session::getContext() const {
+        std::lock_guard<std::mutex> lock(context_mutex_);
+        return context_;
+    }
+
     std::vector<llama_token> Session::tokenize(const std::string& text, bool add_bos) {
         int n_tokens_max = text.length() + (add_bos ? 1 : 0) + 1;
         std::vector<llama_token> tokens(n_tokens_max);

@@ -115,10 +115,29 @@ void InferenceService::processTask(Task& task) {
     }
 
     // --- System Prompt Concatenation ---
-    std::string final_prompt = task.params.prompt;
-    if (!system_prompt.empty()) {
-        final_prompt = system_prompt + "\n\n" + final_prompt;
+    std::string final_prompt;
+
+    // 1. Context messages (chat history)
+    auto context = session->getContext();
+    if (!context.messages.empty()) {
+        for (const auto& msg : context.messages) {
+            final_prompt += msg.role + ": " + msg.content + "\n";
+        }
+        final_prompt += "\n";
+
+        IC_LOG_DEBUG("Context applied", {
+            {"session_id", task.session_id},
+            {"context_messages", (int)context.messages.size()}
+        });
     }
+
+    // 2. System prompt (from profile or client)
+    if (!system_prompt.empty()) {
+        final_prompt += system_prompt + "\n\n";
+    }
+
+    // 3. Current user prompt
+    final_prompt += task.params.prompt;
 
     activeGenerations_++;
 

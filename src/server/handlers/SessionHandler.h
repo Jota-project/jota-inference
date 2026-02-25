@@ -124,6 +124,83 @@ public:
         }
     }
 
+    /**
+     * Handle set_context request
+     * @param ctx Request context
+     * @param payload JSON payload with session_id and context
+     */
+    void handleSetContext(RequestContext& ctx, const json& payload) {
+        auto* data = ctx.getData();
+        
+        // Check authentication
+        if (!data->authenticated) {
+            json response = {
+                {"op", Op::CONTEXT_ERROR},
+                {"error", "Not authenticated"}
+            };
+            ctx.send(response);
+            return;
+        }
+        
+        // Extract session_id
+        if (!payload.contains("session_id")) {
+            json response = {
+                {"op", Op::CONTEXT_ERROR},
+                {"error", "Missing session_id"}
+            };
+            ctx.send(response);
+            return;
+        }
+        
+        std::string session_id = payload["session_id"];
+        
+        // Verify ownership
+        auto* session = sessionManager_->getSession(session_id);
+        if (!session || session->getClientId() != data->client_id) {
+            json response = {
+                {"op", Op::CONTEXT_ERROR},
+                {"session_id", session_id},
+                {"error", "Session not found or access denied"}
+            };
+            ctx.send(response);
+            return;
+        }
+        
+        // Validate context field exists
+        if (!payload.contains("context")) {
+            json response = {
+                {"op", Op::CONTEXT_ERROR},
+                {"session_id", session_id},
+                {"error", "Missing context field"}
+            };
+            ctx.send(response);
+            return;
+        }
+        
+        // Parse and set context
+        auto sessionContext = parseContext(payload);
+        
+        if (sessionManager_->setSessionContext(session_id, std::move(sessionContext))) {
+            json response = {
+                {"op", Op::CONTEXT_SET},
+                {"session_id", session_id}
+            };
+            ctx.send(response);
+            
+            IC_LOG_INFO("Context set", {
+                {"session_id", session_id},
+                {"client_id", data->client_id}
+            });
+        } else {
+            json response = {
+                {"op", Op::CONTEXT_ERROR},
+                {"session_id", session_id},
+                {"error", "Failed to set context"}
+            };
+            ctx.send(response);
+        }
+    }
+
 private:
     Core::SessionManager* sessionManager_;
 };

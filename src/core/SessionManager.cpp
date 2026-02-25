@@ -132,6 +132,16 @@ namespace Core {
         return true;
     }
 
+    bool SessionManager::setSessionContext(const std::string& session_id, Server::SessionContext ctx) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = sessions_.find(session_id);
+        if (it == sessions_.end()) {
+            return false;
+        }
+        it->second->setContext(std::move(ctx));
+        return true;
+    }
+
     bool SessionManager::abortSession(const std::string& session_id) {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = sessions_.find(session_id);

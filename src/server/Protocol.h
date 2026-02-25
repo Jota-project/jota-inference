@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -13,6 +14,7 @@ namespace Server {
         
         // Session management
         constexpr const char* CREATE_SESSION = "create_session";
+        constexpr const char* SET_CONTEXT = "set_context";
         constexpr const char* CLOSE_SESSION = "close_session";
         
         // Inference
@@ -30,6 +32,8 @@ namespace Server {
         constexpr const char* SESSION_CREATED = "session_created";
         constexpr const char* SESSION_CLOSED = "session_closed";
         constexpr const char* SESSION_ERROR = "session_error";
+        constexpr const char* CONTEXT_SET = "context_set";
+        constexpr const char* CONTEXT_ERROR = "context_error";
         constexpr const char* TOKEN = "token";
         constexpr const char* END   = "end";
         constexpr const char* ERROR = "error";
@@ -37,6 +41,38 @@ namespace Server {
         constexpr const char* METRICS_SUBSCRIBED = "metrics_subscribed";
         constexpr const char* METRICS_UNSUBSCRIBED = "metrics_unsubscribed";
     }
+
+    // --- Session Context (extensible) ---
+
+    struct ChatMessage {
+        std::string role;     // "user", "assistant", "system"
+        std::string content;
+    };
+
+    struct SessionContext {
+        std::vector<ChatMessage> messages;  // Chat history
+        json extra;                         // Reserved for future context types
+    };
+
+    inline SessionContext parseContext(const json& payload) {
+        SessionContext ctx;
+        if (payload.contains("context")) {
+            auto& context = payload["context"];
+            if (context.contains("messages") && context["messages"].is_array()) {
+                for (auto& msg : context["messages"]) {
+                    ChatMessage cm;
+                    if (msg.contains("role"))    cm.role = msg["role"].get<std::string>();
+                    if (msg.contains("content")) cm.content = msg["content"].get<std::string>();
+                    ctx.messages.push_back(std::move(cm));
+                }
+            }
+            // Store the full context JSON for future extensibility
+            ctx.extra = context;
+        }
+        return ctx;
+    }
+
+    // --- Inference Parameters ---
 
     struct InferenceParams {
         std::string session_id;

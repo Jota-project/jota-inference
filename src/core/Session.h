@@ -2,10 +2,12 @@
 
 #include "llama.h"
 #include "Metrics.h"
+#include "Protocol.h"
 #include <string>
 #include <functional>
 #include <atomic>
 #include <memory>
+#include <mutex>
 
 namespace Core {
 
@@ -37,6 +39,10 @@ namespace Core {
         // Abort current generation
         void abort();
 
+        // Session context (chat history, etc.)
+        void setContext(Server::SessionContext ctx);
+        Server::SessionContext getContext() const;
+
         // Getters
         std::string getSessionId() const { return session_id_; }
         std::string getClientId() const { return client_id_; }
@@ -50,6 +56,8 @@ namespace Core {
         struct llama_model* model_ = nullptr;  // Reference to shared model
         SessionState state_ = SessionState::IDLE;
         std::atomic<bool> abort_flag_{false};
+        Server::SessionContext context_;
+        mutable std::mutex context_mutex_;
 
         // Helper methods (similar to Engine)
         std::vector<llama_token> tokenize(const std::string& text, bool add_bos);
