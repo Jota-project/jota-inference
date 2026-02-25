@@ -20,6 +20,35 @@ namespace Server {
         if (jota_db_sk_.empty()) {
             IC_LOG_WARN("JOTA_DB_SK or JOTA_DB_USR is not set. JotaDB auth requests may fail.");
         }
+
+        verifyConnection();
+    }
+
+    void ClientAuth::parseUrl(const std::string& url, std::string& scheme, std::string& domain, std::string& path_prefix) const {
+        std::string host_port;
+        if (url.find("http://") == 0) {
+            scheme = "http";
+            host_port = url.substr(7);
+        } else if (url.find("https://") == 0) {
+            scheme = "https";
+            host_port = url.substr(8);
+        } else {
+            scheme = "http"; 
+            host_port = url;
+        }
+
+        size_t path_pos = host_port.find('/');
+        if (path_pos != std::string::npos) {
+            domain = host_port.substr(0, path_pos);
+            path_prefix = host_port.substr(path_pos);
+        } else {
+            domain = host_port;
+            path_prefix = "";
+        }
+        
+        if (!path_prefix.empty() && path_prefix.back() == '/') {
+            path_prefix.pop_back();
+        }
     }
 
     bool ClientAuth::authenticate(const std::string& client_id, const std::string& api_key) {
@@ -47,34 +76,8 @@ namespace Server {
 
         // 2. Parse and Sanitize URL
         std::string url = jota_db_url_;
-        std::string scheme;
-        std::string host_port;
-        // Logic duplicated, could exact to helper method but for now inline is fine
-        if (url.find("http://") == 0) {
-            scheme = "http";
-            host_port = url.substr(7);
-        } else if (url.find("https://") == 0) {
-            scheme = "https";
-            host_port = url.substr(8);
-        } else {
-            scheme = "http"; 
-            host_port = url;
-        }
-
-        size_t path_pos = host_port.find('/');
-        std::string domain;
-        std::string path_prefix;
-        if (path_pos != std::string::npos) {
-            domain = host_port.substr(0, path_pos);
-            path_prefix = host_port.substr(path_pos);
-        } else {
-            domain = host_port;
-            path_prefix = "";
-        }
-        
-        if (!path_prefix.empty() && path_prefix.back() == '/') {
-            path_prefix.pop_back();
-        }
+        std::string scheme, domain, path_prefix;
+        parseUrl(url, scheme, domain, path_prefix);
         
         std::string base_url = scheme + "://" + domain;
 
@@ -95,7 +98,7 @@ namespace Server {
         httplib::Headers headers;
         
         // 1. Client Credentials (X-Headers)
-        headers.emplace("X-Client-ID", client_id);
+        headers.emplace("X-Service-ID", client_id);
         headers.emplace("X-API-Key", api_key);
         
         // 2. Server Identity (Bearer Token)
@@ -164,71 +167,53 @@ namespace Server {
     }
 
     bool ClientAuth::verifyConnection() {
-        std::string url = jota_db_url_;
-        // Basic URL parsing (simplified for brevity, should ideally share logic)
-        std::string scheme;
-        std::string host_port;
-        if (url.find("http://") == 0) {
-            scheme = "http";
-            host_port = url.substr(7);
-        } else if (url.find("https://") == 0) {
-            scheme = "https";
-            host_port = url.substr(8);
-        } else {
-            scheme = "http"; 
-            host_port = url;
-        }
 
-        size_t path_pos = host_port.find('/');
-        std::string domain;
-        std::string path_prefix;
-        if (path_pos != std::string::npos) {
-            domain = host_port.substr(0, path_pos);
-            path_prefix = host_port.substr(path_pos);
-        } else {
-            domain = host_port;
-            path_prefix = "";
-        }
-        
-        if (!path_prefix.empty() && path_prefix.back() == '/') {
-            path_prefix.pop_back();
-        }
-        
-        std::string base_url = scheme + "://" + domain;
-        httplib::Client cli(base_url.c_str());
-        cli.set_connection_timeout(3);
-        cli.set_read_timeout(3);
-        
-        #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
-        if (scheme == "https") {
-            cli.enable_server_certificate_verification(false); 
-        }
-        #endif
 
-        std::string request_path = path_prefix + "/health"; 
-        
-        httplib::Headers headers;
-        if (!jota_db_sk_.empty()) {
-            headers.emplace("Authorization", "Bearer " + jota_db_sk_);
-        } else {
-            IC_LOG_WARN("JOTA_DB_SK is empty. Authorization will likely fail.");
+        if (authenticate(Core::EnvLoader::get("INFERENCE_CENTER_ID"), Core::EnvLoader::get("INFERENCE_CENTER_SK"))) {
+
+            IC_LOG_INFO("JotaDB Connection Verified (Heartbeat OK)");
+            return true;
         }
+        // std::string url = jota_db_url_;
+        // std::string scheme, domain, path_prefix;
+        // parseUrl(url, scheme, domain, path_prefix);
         
-        auto res = cli.Get(request_path.c_str(), headers);
+        // std::string base_url = scheme + "://" + domain;
+        // httplib::Client cli(base_url.c_str());
+        // cli.set_connection_timeout(3);
+        // cli.set_read_timeout(3);
         
-        if (res && res->status == 200) {
-             IC_LOG_INFO("JotaDB Connection Verified (Heartbeat OK)");
-             return true;
-        }
+        // #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+        // if (scheme == "https") {
+        //     cli.enable_server_certificate_verification(false); 
+        // }
+        // #endif
+
+        // std::string request_path = path_prefix + "/health"; 
         
-        if (res) {
-             IC_LOG_ERROR("JotaDB connection failed", {{"status", res->status}});
-             if (res->status == 401 || res->status == 403) {
-                 IC_LOG_ERROR("Authorization Error: Check JOTA_DB_SK");
-             }
-        } else {
-             IC_LOG_ERROR("JotaDB connection failed", {{"error", std::to_string(static_cast<int>(res.error()))}});
-        }
+        // // No auth needed for heartbeat
+        // httplib::Headers headers;
+        // if (!jota_db_sk_.empty()) {
+        //     headers.emplace("Authorization", "Bearer " + jota_db_sk_);
+        // } else {
+        //     IC_LOG_WARN("JOTA_DB_SK is empty. Authorization will likely fail.");
+        // }
+        
+        // auto res = cli.Get(request_path.c_str());
+        
+        // if (res && res->status == 200) {
+        //      IC_LOG_INFO("JotaDB Connection Verified (Heartbeat OK)");
+        //      return true;
+        // }
+        
+        // if (res) {
+        //      IC_LOG_ERROR("JotaDB connection failed", {{"status", res->status}});
+        //      if (res->status == 401 || res->status == 403) {
+        //          IC_LOG_ERROR("Authorization Error: Check JOTA_DB_SK");
+        //      }
+        // } else {
+        //      IC_LOG_ERROR("JotaDB connection failed", {{"error", std::to_string(static_cast<int>(res.error()))}});
+        // }
         
         return false;
     }

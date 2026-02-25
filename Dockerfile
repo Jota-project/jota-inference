@@ -40,6 +40,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Crear carpeta de logs
+RUN mkdir -p /app/logs && chmod 777 /app/logs
+
 # Copiar solo el ejecutable desde la etapa de construcción
 COPY --from=builder /app/build/InferenceCore .
 # Copiar librerías compartidas de llama.cpp

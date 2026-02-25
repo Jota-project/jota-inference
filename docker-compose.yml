@@ -15,6 +15,8 @@ services:
     ports:
       - "8001:8001"
     volumes:
+      # Montar la carpeta de logs
+      - ./logs:/app/logs
       # Montar la carpeta de modelos del host
       - ./models:/models
       # Montar la configuración de entorno

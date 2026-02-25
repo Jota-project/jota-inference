@@ -52,6 +52,9 @@ namespace Server {
 
         // Helper to parse JotaDB URL from env
         void initJotaDB();
+
+        // Helper to parse URL into scheme, domain, and path_prefix
+        void parseUrl(const std::string& url, std::string& scheme, std::string& domain, std::string& path_prefix) const;
     };
 
 }

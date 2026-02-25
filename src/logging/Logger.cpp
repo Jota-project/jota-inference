@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <sstream>
 #include <thread>
+#include <fstream>
 
 namespace Server {
 namespace Utils {
@@ -54,10 +55,38 @@ void Logger::log(LogLevel levelEnum, const std::string& levelStr, const char* fi
         j["extra"] = metadata;
     }
 
-    std::string output = j.dump();
+    std::string json_output = j.dump();
+
+    // Colores para consola
+    std::string color;
+    if (levelStr == "INFO") color = "\033[92m";
+    else if (levelStr == "WARN") color = "\033[93m";
+    else if (levelStr == "ERROR") color = "\033[91m";
+    else if (levelStr == "DEBUG") color = "\033[94m";
+    else color = "\033[0m";
+
+    std::string reset = "\033[0m";
+    std::string gray = "\033[90m";
+    std::string cyan = "\033[96m";
+
+    std::stringstream console_ss;
+    console_ss << gray << "[" << ss.str() << "]" << reset << " "
+               << color << "[" << std::setw(5) << std::left << levelStr << "]" << reset << " "
+               << message << " "
+               << gray << "(" << filename << ":" << line << " | Thread: " << j["thread_id"] << ")" << reset;
+               
+    if (!metadata.is_null() && !metadata.empty()) {
+        console_ss << "\n    " << cyan << "↳ Extra:" << reset << " " << metadata.dump();
+    }
 
     std::lock_guard<std::mutex> lock(getMutex());
-    std::cout << output << std::endl;
+    std::cout << console_ss.str() << std::endl;
+    
+    // Persist to file as JSON
+    std::ofstream log_file("logs/inference.log", std::ios::app);
+    if (log_file.is_open()) {
+        log_file << json_output << "\n";
+    }
 }
 
 } // namespace Utils
