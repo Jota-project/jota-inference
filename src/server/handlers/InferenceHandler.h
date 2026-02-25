@@ -59,11 +59,12 @@ public:
         InferenceParams params = parseInfer(payload);
         
         // Create callbacks that use RequestContext
-        auto onToken = [ctx, session_id](const std::string& sid, const std::string& token) {
+        auto onToken = [ctx, session_id](const std::string& sid, const std::string& token, const std::string& type) {
             json msg = {
                 {"op", Op::TOKEN},
                 {"session_id", sid},
-                {"content", token}
+                {"content", token},
+                {"type", type}
             };
             ctx.send(msg);
         };

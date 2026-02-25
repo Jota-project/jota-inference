@@ -3,6 +3,7 @@
 #include "StringUtils.h"
 #include "Exceptions.h"
 #include "InferenceProfiles.h"
+#include "ThoughtFilter.h"
 
 namespace Server {
 
@@ -121,14 +122,22 @@ void InferenceService::processTask(Task& task) {
 
     activeGenerations_++;
 
+    // --- ThoughtFilter wraps the token callback ---
+    ::Utils::ThoughtFilter filter([&task](const std::string& text, const std::string& type) {
+        if (task.onToken) {
+            task.onToken(task.session_id, text, type);
+        }
+    });
+
     try {
-        auto metrics = session->generate(final_prompt, [&task](const std::string& token) {
+        auto metrics = session->generate(final_prompt, [&filter](const std::string& token) {
             std::string validToken = Utils::sanitizeUtf8(token);
-            if (task.onToken) {
-                task.onToken(task.session_id, validToken);
-            }
+            filter.feed(validToken);
             return true;
         }, temp, top_p, max_tokens);
+
+        // Flush any remaining buffered tokens (e.g. partial tag at end)
+        filter.flush();
 
         {
             std::lock_guard<std::mutex> lock(metricsMutex_);

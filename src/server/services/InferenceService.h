@@ -22,8 +22,9 @@ namespace Server {
 class InferenceService {
 public:
     // Token callback: called for each generated token
+    // type is "thought" or "content" (from ThoughtFilter)
     // Called from worker thread - caller must handle thread-safety
-    using TokenCallback = std::function<void(const std::string& session_id, const std::string& token)>;
+    using TokenCallback = std::function<void(const std::string& session_id, const std::string& token, const std::string& type)>;
     
     // Completion callback: called when inference finishes
     // Called from worker thread - caller must handle thread-safety
