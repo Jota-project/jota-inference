@@ -6,6 +6,12 @@ import signal
 import socket
 import json
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass # python-dotenv is not strictly required if running with inline envs
+
 # Configuration
 SERVER_BIN = "./build/InferenceCore"
 MODEL_PATH = "models/LFM/LFM2.5-1.2B-Thinking-Q4_K_M.gguf"
@@ -17,6 +23,7 @@ URI = f"ws://{HOST}:{PORT}"
 TEST_FILES = [
     "test_auth.py",
     "test_client.py",
+    "test_safety.py",
     # "test_multi_session.py", # This might take longer, uncomment if needed
     # "test_metrics_subscription.py"
 ]
@@ -126,12 +133,13 @@ def run_tests():
         
         print("\n🏗️  Running Tests...\n")
         
-        # We need to inform the tests about the port. 
-        # Since I cannot easily modify them in this run without editing them constantly,
-        # I will modify them ONCE to respect an environment variable `TEST_URI`.
-        
+        # Pass existing environment + explicitly set TEST_URI and keys
         my_env = os.environ.copy()
         my_env["TEST_URI"] = URI
+        if "IC_TEST_CLIENT_ID" not in my_env:
+             my_env["IC_TEST_CLIENT_ID"] = "inference_center"
+        if "IC_TEST_API_KEY" not in my_env:
+             my_env["IC_TEST_API_KEY"] = "inference_center_8f29c1a0e63847b592d8e428f7a6c9d0b51e39a02f374c18a5927d"
         
         for test_file in TEST_FILES:
             if not os.path.exists(test_file):

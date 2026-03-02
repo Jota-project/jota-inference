@@ -54,7 +54,18 @@ public:
         }
         
         std::string session_id = payload["session_id"];
-        
+
+        // Ensure there is actually a model loaded before starting inference
+        if (!inferenceService_->getSessionManager()->isEngineLoaded()) {
+            json response = {
+                {"op", Op::ERROR},
+                {"error", "ERROR_NO_MODEL_LOADED"}
+            };
+            ctx.send(response);
+            IC_LOG_WARN("Inference rejected: No model loaded", {{"session_id", session_id}});
+            return;
+        }
+
         // Parse all inference parameters (mode, temp, top_p, max_tokens, system_prompt, grammar)
         InferenceParams params = parseInfer(payload);
         

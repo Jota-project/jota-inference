@@ -396,6 +396,14 @@ Options:
 
 ## 🐛 Troubleshooting
 
+### "ERROR_NO_MODEL_LOADED"
+
+The server received an `infer` command, but no model is currently loaded in the engine. You must send a `COMMAND_LOAD_MODEL` first, or check the server logs if a default model failed to load at startup.
+
+### "ERROR_INFERENCE_IN_PROGRESS"
+
+You attempted to send a `COMMAND_LOAD_MODEL` to switch or unload models while the server is actively processing an inference generation. Wait for the `end` op or send an `abort` op before switching models.
+
 ### "Failed to load client configuration"
  
  Check that `JOTA_DB_URL` is reachable from the server.

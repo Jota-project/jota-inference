@@ -31,7 +31,7 @@ WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
     metricsHandler_ = std::make_shared<MetricsHandler>();
 
     modelResolver_ = std::make_shared<ModelResolver>();
-    modelHandler_ = std::make_shared<ModelHandler>(modelResolver_, engine_);
+    modelHandler_ = std::make_shared<ModelHandler>(modelResolver_, engine_, inferenceService_.get());
 
     // Create message dispatcher
     dispatcher_ = std::make_unique<MessageDispatcher>(

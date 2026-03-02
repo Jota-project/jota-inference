@@ -15,6 +15,10 @@ namespace Core {
         closeAllSessions();
     }
 
+    bool SessionManager::isEngineLoaded() const {
+        return engine_.isLoaded();
+    }
+
     std::string SessionManager::generateSessionId() {
         // Generate UUID-like session ID
         static std::random_device rd;

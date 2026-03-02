@@ -2,6 +2,7 @@
 
 #include "../RequestContext.h"
 #include "../services/ModelResolver.h"
+#include "../services/InferenceService.h"
 #include "../../core/Engine.h"
 #include "Logger.h"
 #include <nlohmann/json.hpp>
@@ -19,9 +20,10 @@ namespace Server {
  */
 class ModelHandler {
 public:
-    explicit ModelHandler(std::shared_ptr<ModelResolver> modelResolver, Core::Engine& engine)
+    explicit ModelHandler(std::shared_ptr<ModelResolver> modelResolver, Core::Engine& engine, InferenceService* inferenceService)
         : modelResolver_(modelResolver)
         , engine_(engine)
+        , inferenceService_(inferenceService)
     {
         if (!modelResolver_) {
             throw std::invalid_argument("ModelResolver cannot be null");
@@ -54,6 +56,13 @@ public:
         
         if (!success) {
             sendError(ctx, "ERROR_MODEL_NOT_FOUND");
+            return;
+        }
+
+        // Safety check: do not unload or switch models while an inference is actively generating
+        if (inferenceService_ && inferenceService_->getActiveGenerations() > 0) {
+            sendError(ctx, "ERROR_INFERENCE_IN_PROGRESS");
+            IC_LOG_WARN("Model switch rejected: Inference in progress", {{"client_id", data->client_id}});
             return;
         }
 
@@ -109,6 +118,7 @@ public:
 private:
     std::shared_ptr<ModelResolver> modelResolver_;
     Core::Engine& engine_;
+    InferenceService* inferenceService_;
 
     void sendError(RequestContext& ctx, const std::string& errorMsg) {
         json response = {

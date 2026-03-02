@@ -19,6 +19,9 @@ namespace Core {
         // Set client auth reference for validation
         void setClientAuth(Server::ClientAuth* auth) { client_auth_ = auth; }
 
+        // Check if the underlying engine has a model loaded
+        bool isEngineLoaded() const;
+
         // Create a new session for a client
         // Returns session_id on success, empty string on failure
         std::string createSession(const std::string& client_id);

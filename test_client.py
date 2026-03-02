@@ -5,22 +5,18 @@ import os
 
 async def test():
     uri = os.environ.get("TEST_URI", "ws://green-house.local/api/inference/")
-    print(f"Connecting to: {uri}")
-    # Disable ping to avoid timeout during blocking server operations (model load)
-    async with websockets.connect(uri, ping_interval=None, close_timeout=120) as websocket:
-        # 1. Wait for Hello
-        greeting = await websocket.recv()
-        print(f"< {greeting}")
+    client_id = os.environ.get("IC_TEST_CLIENT_ID", "inference_center")
+    api_key = os.environ.get("IC_TEST_API_KEY", "test_key_placeholder")
 
-        # 2. Authenticate
-        auth = {
-            "op": "auth",
-            "client_id": "laptop_principal",
-            "api_key": "sk_laptop_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz"
-        }
-        await websocket.send(json.dumps(auth))
-        print(f"> {auth}")
-        
+    print(f"Connecting to: {uri}")
+    valid_headers = {
+        "x-client-id": client_id,
+        "x-api-key": api_key
+    }
+
+    # Disable ping to avoid timeout during blocking server operations (model load)
+    async with websockets.connect(uri, additional_headers=valid_headers) as websocket:
+        # 1. Wait for Auth Success
         auth_response = await websocket.recv()
         print(f"< {auth_response}")
         
