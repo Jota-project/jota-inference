@@ -122,11 +122,14 @@ add_executable(${PROJECT_NAME}
     src/server/services/InferenceService.cpp
     src/server/services/MetricsService.h
     src/server/services/MetricsService.cpp
+    src/server/services/ModelResolver.h
+    src/server/services/ModelResolver.cpp
     # Server - Handlers (header-only)
     src/server/handlers/AuthHandler.h
     src/server/handlers/SessionHandler.h
     src/server/handlers/InferenceHandler.h
     src/server/handlers/MetricsHandler.h
+    src/server/handlers/ModelHandler.h
     # Hardware
     src/hardware/Monitor.h
     src/hardware/Monitor.cpp

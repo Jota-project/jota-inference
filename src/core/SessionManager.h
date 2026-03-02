@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Session.h"
+#include "Engine.h"
 #include "ClientAuth.h"
 #include "../server/Protocol.h"
 #include <string>
@@ -12,7 +13,7 @@ namespace Core {
 
     class SessionManager {
     public:
-        SessionManager(struct llama_model* model, int ctx_size);
+        SessionManager(Engine& engine, int ctx_size);
         ~SessionManager();
 
         // Set client auth reference for validation
@@ -47,7 +48,7 @@ namespace Core {
         int getTotalSessionCount() const;
 
     private:
-        struct llama_model* model_;
+        Engine& engine_;
         int ctx_size_;
         Server::ClientAuth* client_auth_ = nullptr;
 

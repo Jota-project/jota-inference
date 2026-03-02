@@ -187,7 +187,40 @@ Or on failure:
 {"op": "session_closed", "session_id": "sess_abc123_def456"}
 ```
 
-### 3. Inference
+### 3. Model Management
+
+**List Available Models:**
+```json
+// Client → Server
+{"op": "COMMAND_LIST_MODELS"}
+
+// Server → Client
+{
+  "op": "list_models_result",
+  "status": "SUCCESS",
+  "models": [
+    {"id": "llama-3.2-3b", "name": "Llama 3.2 3B Instruct", "gpu_layers": -1, "context_size": 2048}
+  ]
+}
+```
+
+**Load Model:**
+```json
+// Client → Server
+{
+  "op": "COMMAND_LOAD_MODEL",
+  "model_id": "llama-3.2-3b"
+}
+
+// Server → Client
+{
+  "op": "load_model_result",
+  "status": "SUCCESS"
+}
+```
+*Note: If the model cannot be found or loaded, it returns an `error` operation with `ERROR_MODEL_NOT_FOUND`.*
+
+### 4. Inference
 
 **Client → Server:**
 ```json
@@ -224,7 +257,7 @@ Or on failure:
 {"op": "abort", "session_id": "sess_abc123_def456"}
 ```
 
-### 4. Real-time Metrics (Opt-in)
+### 5. Real-time Metrics (Opt-in)
 
 **Subscribe to Metrics:**
 ```json

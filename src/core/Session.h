@@ -24,6 +24,7 @@ namespace Core {
     public:
         Session(const std::string& session_id, 
                 const std::string& client_id,
+                const std::string& model_id,
                 struct llama_model* model,
                 int ctx_size);
         ~Session();
@@ -46,12 +47,14 @@ namespace Core {
         // Getters
         std::string getSessionId() const { return session_id_; }
         std::string getClientId() const { return client_id_; }
+        std::string getModelId() const { return model_id_; }
         SessionState getState() const { return state_; }
         bool isGenerating() const { return state_ == SessionState::GENERATING; }
 
     private:
         std::string session_id_;
         std::string client_id_;
+        std::string model_id_;
         struct llama_context* ctx_ = nullptr;
         struct llama_model* model_ = nullptr;  // Reference to shared model
         SessionState state_ = SessionState::IDLE;

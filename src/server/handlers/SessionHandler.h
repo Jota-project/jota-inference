@@ -46,9 +46,13 @@ public:
         auto session_id = sessionManager_->createSession(data->client_id);
         
         if (!session_id.empty()) {
+            auto* session = sessionManager_->getSession(session_id);
+            std::string model_id = session ? session->getModelId() : "unknown";
+
             json response = {
                 {"op", Op::SESSION_CREATED},
-                {"session_id", session_id}
+                {"session_id", session_id},
+                {"model_id", model_id}
             };
             ctx.send(response);
             

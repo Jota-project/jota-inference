@@ -1,8 +1,10 @@
 #include "Engine.h"
 #include "LlamaLogger.h"
+#include "Logger.h"
 #include <vector>
 #include <cstring>
 #include <mutex>
+#include <filesystem>
 
 namespace Core {
 
@@ -17,7 +19,16 @@ namespace Core {
     }
 
     Engine::~Engine() {
-        if (model) llama_model_free(model);
+        unloadModel();
+    }
+
+    void Engine::unloadModel() {
+        if (model) {
+            IC_LOG_INFO("Unloading current model from VRAM", {{"model_id", modelId_}});
+            llama_free_model(model);
+            model = nullptr;
+            modelId_ = "";
+        }
     }
 
     bool Engine::isLoaded() const {
@@ -27,8 +38,14 @@ namespace Core {
     bool Engine::loadModel(const EngineConfig& config) {
         if (isLoaded()) return false;
 
-        // Store context size for later use by SessionManager
+        if (!std::filesystem::exists(config.modelPath)) {
+            IC_LOG_ERROR("Model file not found", {{"path", config.modelPath}});
+            return false;
+        }
+
+        // Store context size and model id for later use by SessionManager
         ctx_size_ = config.ctx_size;
+        modelId_ = config.modelId;
 
         // Model Parameters
         auto mparams = llama_model_default_params();

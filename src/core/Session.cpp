@@ -9,9 +9,10 @@ namespace Core {
 
     Session::Session(const std::string& session_id, 
                      const std::string& client_id,
+                     const std::string& model_id,
                      struct llama_model* model,
                      int ctx_size) 
-        : session_id_(session_id), client_id_(client_id), model_(model) {
+        : session_id_(session_id), client_id_(client_id), model_id_(model_id), model_(model) {
         
         if (!model_) {
             throw InferenceBackendException("Cannot create session with null model", session_id_);
@@ -30,7 +31,8 @@ namespace Core {
 
         IC_LOG_INFO("Created session", {
             {"session_id", session_id_},
-            {"client_id", client_id_}
+            {"client_id", client_id_},
+            {"model_id", model_id_}
         });
     }
 

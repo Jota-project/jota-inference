@@ -17,9 +17,11 @@ namespace Server {
         constexpr const char* SET_CONTEXT = "set_context";
         constexpr const char* CLOSE_SESSION = "close_session";
         
-        // Inference
+        // Inference & Models
         constexpr const char* INFER = "infer";
         constexpr const char* ABORT = "abort";
+        constexpr const char* LOAD_MODEL = "COMMAND_LOAD_MODEL";
+        constexpr const char* LIST_MODELS = "COMMAND_LIST_MODELS";
         
         // Metrics subscription
         constexpr const char* SUBSCRIBE_METRICS = "subscribe_metrics";
@@ -40,6 +42,8 @@ namespace Server {
         constexpr const char* METRICS = "metrics";  // Real-time system metrics
         constexpr const char* METRICS_SUBSCRIBED = "metrics_subscribed";
         constexpr const char* METRICS_UNSUBSCRIBED = "metrics_unsubscribed";
+        constexpr const char* LOAD_MODEL_RESULT = "load_model_result";
+        constexpr const char* LIST_MODELS_RESULT = "list_models_result";
     }
 
     // --- Session Context (extensible) ---

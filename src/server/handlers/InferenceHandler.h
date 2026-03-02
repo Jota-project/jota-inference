@@ -58,21 +58,27 @@ public:
         // Parse all inference parameters (mode, temp, top_p, max_tokens, system_prompt, grammar)
         InferenceParams params = parseInfer(payload);
         
+        // Grab model ID to include in payloads
+        auto* session = inferenceService_->getSessionManager()->getSession(session_id);
+        std::string model_id = session ? session->getModelId() : "unknown";
+
         // Create callbacks that use RequestContext
-        auto onToken = [ctx, session_id](const std::string& sid, const std::string& token, const std::string& type) {
+        auto onToken = [ctx, session_id, model_id](const std::string& sid, const std::string& token, const std::string& type) {
             json msg = {
                 {"op", Op::TOKEN},
                 {"session_id", sid},
+                {"model_id", model_id},
                 {"content", token},
                 {"type", type}
             };
             ctx.send(msg);
         };
         
-        auto onComplete = [ctx, session_id](const std::string& sid, const Core::Metrics& metrics) {
+        auto onComplete = [ctx, session_id, model_id](const std::string& sid, const Core::Metrics& metrics) {
             json msg = {
                 {"op", Op::END},
                 {"session_id", sid},
+                {"model_id", model_id},
                 {"stats", {
                     {"ttft_ms", metrics.ttft_ms},
                     {"total_ms", metrics.total_time_ms},

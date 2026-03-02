@@ -16,7 +16,7 @@ WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
     // No static config loading required
 
     // Create session manager
-    sessionManager_ = std::make_unique<Core::SessionManager>(engine_.getModel(), ctx_size);
+    sessionManager_ = std::make_unique<Core::SessionManager>(engine_, ctx_size);
     sessionManager_->setClientAuth(&clientAuth_);
 
     // Create services
@@ -30,13 +30,17 @@ WsServer::WsServer(Core::Engine& engine, Hardware::Monitor& monitor,
     inferenceHandler_ = std::make_shared<InferenceHandler>(inferenceService_.get());
     metricsHandler_ = std::make_shared<MetricsHandler>();
 
+    modelResolver_ = std::make_shared<ModelResolver>();
+    modelHandler_ = std::make_shared<ModelHandler>(modelResolver_, engine_);
+
     // Create message dispatcher
     dispatcher_ = std::make_unique<MessageDispatcher>(
         pingHandler_,
         authHandler_,
         sessionHandler_,
         inferenceHandler_,
-        metricsHandler_
+        metricsHandler_,
+        modelHandler_
     );
 
     IC_LOG_INFO("WsServer initialized", {{"port", port_}});

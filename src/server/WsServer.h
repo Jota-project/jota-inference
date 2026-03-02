@@ -15,6 +15,7 @@
 #include "handlers/SessionHandler.h"
 #include "handlers/InferenceHandler.h"
 #include "handlers/MetricsHandler.h"
+#include "handlers/ModelHandler.h"
 #include "../core/Engine.h"
 #include "../core/SessionManager.h"
 #include "../hardware/Monitor.h"
@@ -60,6 +61,8 @@ private:
     std::shared_ptr<SessionHandler> sessionHandler_;
     std::shared_ptr<InferenceHandler> inferenceHandler_;
     std::shared_ptr<MetricsHandler> metricsHandler_;
+    std::shared_ptr<ModelResolver> modelResolver_;
+    std::shared_ptr<ModelHandler> modelHandler_;
     
     // Message dispatcher
     std::unique_ptr<MessageDispatcher> dispatcher_;

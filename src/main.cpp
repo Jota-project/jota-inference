@@ -5,6 +5,7 @@
 #include "Monitor.h"
 #include "EnvLoader.h"
 #include "ClientAuth.h"
+#include "services/ModelResolver.h"
 #include "Logger.h"
 
 // Helper to get file size
@@ -68,11 +69,38 @@ int main(int argc, char** argv) {
         }
     }
     
+    // 0.2 Check for Model Path / Default Fetching
+    Server::ModelResolver resolver;
+    std::string finalModelId = "local_model";
+
     if (modelPath.empty()) {
-        IC_LOG_ERROR("Missing model argument", {
-            {"usage", std::string("Usage: ") + argv[0] + " --model <path_to_model.gguf> [--prompt \"text\"] [--port 3000] [--gpu-layers N] [--ctx-size 512]"}
-        });
-        return 1;
+        IC_LOG_INFO("No --model provided. Attempting to fetch default model from JotaDB...");
+        json availableModels;
+        if (resolver.fetchAvailableModels(availableModels)) {
+            if (availableModels.is_array() && !availableModels.empty()) {
+                auto firstModel = availableModels[0];
+                if (firstModel.contains("id")) {
+                    finalModelId = firstModel["id"].get<std::string>();
+                    IC_LOG_INFO("Selected default model", {{"model_id", finalModelId}});
+                }
+            }
+        }
+
+        if (finalModelId != "local_model") {
+            Core::EngineConfig dbConfig;
+            if (resolver.fetchModelConfig(finalModelId, dbConfig)) {
+                IC_LOG_INFO("Retrieved default model configuration from DB.");
+                modelPath = dbConfig.modelPath;
+                if (gpuLayers == -1) gpuLayers = dbConfig.n_gpu_layers;
+                if (ctxSize == 512) ctxSize = dbConfig.ctx_size;
+            } else {
+                IC_LOG_ERROR("Failed to fetch configuration for default model.");
+                return 1;
+            }
+        } else {
+            IC_LOG_ERROR("Could not determine a default model from DB and no --model provided.");
+            return 1;
+        }
     }
 
     // 0. Initialize Hardware Monitor
@@ -98,6 +126,7 @@ int main(int argc, char** argv) {
     });
 
     Core::EngineConfig config;
+    config.modelId = finalModelId;
     config.modelPath = modelPath;
     config.ctx_size = ctxSize;
     

@@ -6,6 +6,7 @@
 #include "handlers/SessionHandler.h"
 #include "handlers/InferenceHandler.h"
 #include "handlers/MetricsHandler.h"
+#include "handlers/ModelHandler.h"
 #include "Logger.h"
 #include <nlohmann/json.hpp>
 #include <memory>
@@ -27,15 +28,17 @@ public:
         std::shared_ptr<AuthHandler> authHandler,
         std::shared_ptr<SessionHandler> sessionHandler,
         std::shared_ptr<InferenceHandler> inferenceHandler,
-        std::shared_ptr<MetricsHandler> metricsHandler
+        std::shared_ptr<MetricsHandler> metricsHandler,
+        std::shared_ptr<ModelHandler> modelHandler
     )
         : pingHandler_(pingHandler)
         , authHandler_(authHandler)
         , sessionHandler_(sessionHandler)
         , inferenceHandler_(inferenceHandler)
         , metricsHandler_(metricsHandler)
+        , modelHandler_(modelHandler)
     {
-        if (!pingHandler_ || !authHandler_ || !sessionHandler_ || !inferenceHandler_ || !metricsHandler_) {
+        if (!pingHandler_ || !authHandler_ || !sessionHandler_ || !inferenceHandler_ || !metricsHandler_ || !modelHandler_) {
             throw std::invalid_argument("All handlers must be provided");
         }
     }
@@ -87,6 +90,12 @@ public:
             else if (op == Op::UNSUBSCRIBE_METRICS) {
                 metricsHandler_->handleUnsubscribe(ctx, data);
             }
+            else if (op == Op::LOAD_MODEL) {
+                modelHandler_->handleLoadModel(ctx, data);
+            }
+            else if (op == Op::LIST_MODELS) {
+                modelHandler_->handleListModels(ctx, data);
+            }
             else {
                 handleError(ctx, "Unknown operation: " + op);
             }
@@ -104,6 +113,7 @@ private:
     std::shared_ptr<SessionHandler> sessionHandler_;
     std::shared_ptr<InferenceHandler> inferenceHandler_;
     std::shared_ptr<MetricsHandler> metricsHandler_;
+    std::shared_ptr<ModelHandler> modelHandler_;
     
     /**
      * Send error response to client

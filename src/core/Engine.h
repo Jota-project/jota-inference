@@ -14,6 +14,7 @@ namespace Core {
     using TokenCallback = std::function<bool(const std::string& token)>;
 
     struct EngineConfig {
+        std::string modelId;
         std::string modelPath;
         int n_gpu_layers = -1; // -1 = auto-detect, 0 = CPU only, >0 = specific count
         int ctx_size = 512;    // Reduced for short conversations
@@ -33,6 +34,9 @@ namespace Core {
         // Initialize the engine with the specific model
         bool loadModel(const EngineConfig& config);
 
+        // Unload the current model to free VRAM
+        void unloadModel();
+
         // Check internal status
         bool isLoaded() const;
 
@@ -42,11 +46,15 @@ namespace Core {
         // Get the loaded model (for SessionManager to create contexts)
         struct llama_model* getModel() { return model; }
         
+        // Get model ID
+        std::string getModelId() const { return modelId_; }
+
         // Get context size from config
         int getCtxSize() const { return ctx_size_; }
 
     private:
         struct llama_model* model = nullptr;
+        std::string modelId_;
         int ctx_size_ = 512;
     };
 

@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     zlib1g-dev \
     libssl-dev \
+    ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -22,11 +23,11 @@ COPY . .
 # Configurar y compilar con soporte para CUDA
 #
 RUN mkdir build && cd build && \
-    cmake -DUSE_CUDA=ON -DBUILD_TESTS=OFF ..
+    cmake -G Ninja -DUSE_CUDA=ON -DBUILD_TESTS=OFF ..
 
 # Compilar con verbose para ver errores y limitar hilos para evitar OOM
 RUN cd build && \
-    make VERBOSE=1 -j2
+    ninja -v -j2
 
 # --- ETAPA 2: Runner ---
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
@@ -62,4 +63,4 @@ ENV GPU_LAYERS=-1
 
 # Comando para ejecutar el servidor
 #
-ENTRYPOINT ./InferenceCore --model $MODEL_PATH --port $PORT --gpu-layers $GPU_LAYERS
+ENTRYPOINT ./InferenceCore --port $PORT --gpu-layers $GPU_LAYERS

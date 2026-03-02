@@ -7,11 +7,8 @@
 
 namespace Core {
 
-    SessionManager::SessionManager(struct llama_model* model, int ctx_size)
-        : model_(model), ctx_size_(ctx_size) {
-        if (!model_) {
-            throw std::runtime_error("SessionManager requires a valid model");
-        }
+    SessionManager::SessionManager(Engine& engine, int ctx_size)
+        : engine_(engine), ctx_size_(ctx_size) {
     }
 
     SessionManager::~SessionManager() {
@@ -69,8 +66,17 @@ namespace Core {
         }
 
         try {
+            // Retrieve current live model and its ID
+            struct llama_model* live_model = engine_.getModel();
+            std::string live_model_id = engine_.getModelId();
+
+            if (!live_model) {
+                IC_LOG_ERROR("Cannot create session: No model loaded in engine", {{"client_id", client_id}});
+                return "";
+            }
+
             // Create new session
-            auto session = std::make_unique<Session>(session_id, client_id, model_, ctx_size_);
+            auto session = std::make_unique<Session>(session_id, client_id, live_model_id, live_model, ctx_size_);
             sessions_[session_id] = std::move(session);
 
             // Track client -> sessions mapping
