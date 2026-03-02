@@ -81,6 +81,7 @@ public:
      * @param payload JSON payload
      */
     void handleListModels(RequestContext& ctx, const json& payload) {
+        (void)payload;
         auto* data = ctx.getData();
         
         if (!data->authenticated) {

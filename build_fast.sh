@@ -34,6 +34,12 @@ fi
 if command -v ninja &> /dev/null; then
     echo "[info] Ninja detectado. Usando el generador Ninja..."
     CMAKE_ARGS+=("-G" "Ninja")
+        
+    # Limpiar caché si antes se usó Make
+    if [ -f "Makefile" ]; then
+        echo "[info] Detectado Makefile anterior. Limpiando caché para evitar conflictos de CMake..."
+        rm -rf CMakeCache.txt CMakeFiles _deps
+    fi
 else
     echo "[info] Ninja no detectado. (Recomendación: instala Ninja para mayor velocidad)"
 fi

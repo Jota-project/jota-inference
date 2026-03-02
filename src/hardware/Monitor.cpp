@@ -180,6 +180,7 @@ namespace Hardware {
 
         return recommendedLayers;
 #else
+        (void)modelSizeBytes;
         IC_LOG_INFO("CUDA not compiled. Cannot use GPU layers.");
         return 0; // CPU-only
 #endif

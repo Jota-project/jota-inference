@@ -7,11 +7,15 @@ namespace Server {
 
 ModelResolver::ModelResolver() {
     jota_db_url_ = Core::EnvLoader::get("JOTA_DB_URL", "https://green-house.local/api/db");
+    jota_db_sk_ = Core::EnvLoader::get("JOTA_DB_SK", "");
     inference_center_id_ = Core::EnvLoader::get("INFERENCE_CENTER_ID", "");
     inference_center_sk_ = Core::EnvLoader::get("INFERENCE_CENTER_SK", "");
 
     if (inference_center_id_.empty() || inference_center_sk_.empty()) {
         IC_LOG_WARN("INFERENCE_CENTER_ID or INFERENCE_CENTER_SK is empty. ModelResolver requests to JotaDB may fail.");
+    }
+    if (jota_db_sk_.empty()) {
+        IC_LOG_WARN("JOTA_DB_SK is empty. ModelResolver requests to JotaDB may fail to authenticate.");
     }
 }
 
@@ -62,8 +66,8 @@ bool ModelResolver::fetchModelConfig(const std::string& model_id, Core::EngineCo
     httplib::Headers headers;
     headers.emplace("X-Service-ID", inference_center_id_);
     headers.emplace("X-API-Key", inference_center_sk_);
-    if (!inference_center_sk_.empty()) {
-        headers.emplace("Authorization", "Bearer " + inference_center_sk_);
+    if (!jota_db_sk_.empty()) {
+        headers.emplace("Authorization", "Bearer " + jota_db_sk_);
     }
 
     auto res = cli.Get(request_path.c_str(), headers);
@@ -179,8 +183,8 @@ bool ModelResolver::fetchAvailableModels(json& out_models) {
     httplib::Headers headers;
     headers.emplace("X-Service-ID", inference_center_id_);
     headers.emplace("X-API-Key", inference_center_sk_);
-    if (!inference_center_sk_.empty()) {
-        headers.emplace("Authorization", "Bearer " + inference_center_sk_);
+    if (!jota_db_sk_.empty()) {
+        headers.emplace("Authorization", "Bearer " + jota_db_sk_);
     }
 
     auto res = cli.Get(request_path.c_str(), headers);

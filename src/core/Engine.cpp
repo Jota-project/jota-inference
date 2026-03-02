@@ -25,7 +25,7 @@ namespace Core {
     void Engine::unloadModel() {
         if (model) {
             IC_LOG_INFO("Unloading current model from VRAM", {{"model_id", modelId_}});
-            llama_free_model(model);
+            llama_model_free(model);
             model = nullptr;
             modelId_ = "";
         }

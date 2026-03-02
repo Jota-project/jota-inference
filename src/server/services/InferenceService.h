@@ -86,6 +86,12 @@ public:
      */
     bool abortTask(const std::string& session_id);
     
+    /**
+     * Get the session manager instance
+     * @return Pointer to the SessionManager
+     */
+    Core::SessionManager* getSessionManager() const { return sessionManager_; }
+    
 private:
     Core::SessionManager* sessionManager_;
     

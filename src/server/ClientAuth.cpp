@@ -15,13 +15,9 @@ namespace Server {
         jota_db_url_ = Core::EnvLoader::get("JOTA_DB_URL", "https://green-house.local/api/db");
         jota_db_sk_ = Core::EnvLoader::get("JOTA_DB_SK", "");
         
-
-        IC_LOG_INFO("JotaDB URL configured", {{"url", jota_db_url_}});
         if (jota_db_sk_.empty()) {
             IC_LOG_WARN("JOTA_DB_SK or JOTA_DB_USR is not set. JotaDB auth requests may fail.");
         }
-
-        verifyConnection();
     }
 
     void ClientAuth::parseUrl(const std::string& url, std::string& scheme, std::string& domain, std::string& path_prefix) const {
@@ -167,54 +163,9 @@ namespace Server {
     }
 
     bool ClientAuth::verifyConnection() {
-
-
-        if (authenticate(Core::EnvLoader::get("INFERENCE_CENTER_ID"), Core::EnvLoader::get("INFERENCE_CENTER_SK"))) {
-
-            IC_LOG_INFO("JotaDB Connection Verified (Heartbeat OK)");
+        if (authenticate("inference_center", Core::EnvLoader::get("INFERENCE_CENTER_SK"))) {
             return true;
         }
-        // std::string url = jota_db_url_;
-        // std::string scheme, domain, path_prefix;
-        // parseUrl(url, scheme, domain, path_prefix);
-        
-        // std::string base_url = scheme + "://" + domain;
-        // httplib::Client cli(base_url.c_str());
-        // cli.set_connection_timeout(3);
-        // cli.set_read_timeout(3);
-        
-        // #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
-        // if (scheme == "https") {
-        //     cli.enable_server_certificate_verification(false); 
-        // }
-        // #endif
-
-        // std::string request_path = path_prefix + "/health"; 
-        
-        // // No auth needed for heartbeat
-        // httplib::Headers headers;
-        // if (!jota_db_sk_.empty()) {
-        //     headers.emplace("Authorization", "Bearer " + jota_db_sk_);
-        // } else {
-        //     IC_LOG_WARN("JOTA_DB_SK is empty. Authorization will likely fail.");
-        // }
-        
-        // auto res = cli.Get(request_path.c_str());
-        
-        // if (res && res->status == 200) {
-        //      IC_LOG_INFO("JotaDB Connection Verified (Heartbeat OK)");
-        //      return true;
-        // }
-        
-        // if (res) {
-        //      IC_LOG_ERROR("JotaDB connection failed", {{"status", res->status}});
-        //      if (res->status == 401 || res->status == 403) {
-        //          IC_LOG_ERROR("Authorization Error: Check JOTA_DB_SK");
-        //      }
-        // } else {
-        //      IC_LOG_ERROR("JotaDB connection failed", {{"error", std::to_string(static_cast<int>(res.error()))}});
-        // }
-        
         return false;
     }
 

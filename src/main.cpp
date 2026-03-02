@@ -94,12 +94,10 @@ int main(int argc, char** argv) {
                 if (gpuLayers == -1) gpuLayers = dbConfig.n_gpu_layers;
                 if (ctxSize == 512) ctxSize = dbConfig.ctx_size;
             } else {
-                IC_LOG_ERROR("Failed to fetch configuration for default model.");
-                return 1;
+                IC_LOG_WARN("Failed to fetch configuration for default model. Starting without a pre-loaded model.");
             }
         } else {
-            IC_LOG_ERROR("Could not determine a default model from DB and no --model provided.");
-            return 1;
+            IC_LOG_WARN("Could not determine a default model from DB and no --model provided. Starting without a pre-loaded model.");
         }
     }
 
@@ -152,17 +150,21 @@ int main(int argc, char** argv) {
     }
     
     
-    // Load model silently
-    if (!engine.loadModel(config)) {
-        IC_LOG_ERROR("[FATAL] MODEL LOADING FAILED", {{"model_path", modelPath}});
-        monitor.shutdown();
-        return 1;
+    // Load model if path is provided
+    if (!modelPath.empty()) {
+        if (!engine.loadModel(config)) {
+            IC_LOG_ERROR("[FATAL] MODEL LOADING FAILED", {{"model_path", modelPath}});
+            monitor.shutdown();
+            return 1;
+        }
+        
+        IC_LOG_INFO("MODEL LOADED SUCCESSFULLY", {
+            {"gpu_layers", config.n_gpu_layers},
+            {"ctx_size", config.ctx_size}
+        });
+    } else {
+        IC_LOG_INFO("Starting without a pre-loaded model. Waiting for client to load one via WebSocket.");
     }
-    
-    IC_LOG_INFO("MODEL LOADED SUCCESSFULLY", {
-        {"gpu_layers", config.n_gpu_layers},
-        {"ctx_size", config.ctx_size}
-    });
 
     // 2. Start WebSocket Server
     Server::WsServer server(engine, monitor, port, config.ctx_size);

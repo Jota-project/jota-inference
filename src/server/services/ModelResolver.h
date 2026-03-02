@@ -40,6 +40,7 @@ private:
     std::string jota_db_url_;
     std::string inference_center_id_;
     std::string inference_center_sk_;
+    std::string jota_db_sk_;
 
     // Helper to parse URL into scheme, domain, and path_prefix
     void parseUrl(const std::string& url, std::string& scheme, std::string& domain, std::string& path_prefix) const;
