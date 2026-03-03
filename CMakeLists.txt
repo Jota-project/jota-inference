@@ -106,6 +106,7 @@ add_executable(${PROJECT_NAME}
     src/core/SessionManager.cpp
     # Config
     src/config/EnvLoader.cpp
+    src/config/AppConfig.cpp
     # Logging
     src/logging/Logger.cpp
     src/logging/LlamaLogger.cpp

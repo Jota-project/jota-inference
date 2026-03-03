@@ -7,6 +7,7 @@
 #include <functional>
 #include <atomic>
 #include <memory>
+#include "AppConfig.h"
 
 namespace Core {
 
@@ -17,7 +18,7 @@ namespace Core {
         std::string modelId;
         std::string modelPath;
         int n_gpu_layers = -1; // -1 = auto-detect, 0 = CPU only, >0 = specific count
-        int ctx_size = 512;    // Reduced for short conversations
+        int ctx_size = AppConfig::get().ctx_size;
         bool use_mmap = true;
         bool use_mlock = false;
     };
@@ -55,7 +56,7 @@ namespace Core {
     private:
         struct llama_model* model = nullptr;
         std::string modelId_;
-        int ctx_size_ = 512;
+        int ctx_size_ = AppConfig::get().ctx_size;
     };
 
 }

@@ -153,7 +153,7 @@ void InferenceService::processTask(Task& task) {
             std::string validToken = Utils::sanitizeUtf8(token);
             filter.feed(validToken);
             return true;
-        }, temp, top_p, max_tokens);
+        }, temp, top_p, max_tokens, task.params.grammar);
 
         // Flush any remaining buffered tokens (e.g. partial tag at end)
         filter.flush();

@@ -48,13 +48,18 @@ namespace Utils {
         EmitCallback emit_;
         std::string buffer_;
         bool in_thought_ = false;
+        bool in_tool_call_ = false;
 
         // Known tags (case-insensitive matching done via lowered buffer)
-        static constexpr const char* OPEN_TAGS[] = {"<think>", "<thought>"};
-        static constexpr const char* CLOSE_TAGS[] = {"</think>", "</thought>"};
+        static constexpr const char* OPEN_THOUGHT_TAGS[] = {"<think>", "<thought>"};
+        static constexpr const char* CLOSE_THOUGHT_TAGS[] = {"</think>", "</thought>"};
+        static constexpr const char* OPEN_TOOL_TAGS[] = {"<tool_call>"};
+        static constexpr const char* CLOSE_TOOL_TAGS[] = {"</tool_call>"};
 
         std::string currentType() const {
-            return in_thought_ ? "thought" : "content";
+            if (in_tool_call_) return "tool_call";
+            if (in_thought_) return "thought";
+            return "content";
         }
 
         static std::string toLower(const std::string& s) {
@@ -87,37 +92,55 @@ namespace Utils {
                 // Check if buffer matches a complete tag
                 bool matched = false;
 
-                // Try open tags
-                for (const char* tag : OPEN_TAGS) {
+                // Try open thought tags
+                for (const char* tag : OPEN_THOUGHT_TAGS) {
                     std::string t(tag);
                     if (lower == t) {
-                        // Exact match — consume tag, switch to thought
                         in_thought_ = true;
                         buffer_.clear();
                         matched = true;
                         break;
                     }
-                    if (t.substr(0, lower.size()) == lower && lower.size() < t.size()) {
-                        // Partial prefix match — need more tokens
-                        return;
-                    }
+                    if (t.substr(0, lower.size()) == lower && lower.size() < t.size()) return;
                 }
                 if (matched) continue;
 
-                // Try close tags
-                for (const char* tag : CLOSE_TAGS) {
+                // Try close thought tags
+                for (const char* tag : CLOSE_THOUGHT_TAGS) {
                     std::string t(tag);
                     if (lower == t) {
-                        // Exact match — consume tag, switch to content
                         in_thought_ = false;
                         buffer_.clear();
                         matched = true;
                         break;
                     }
-                    if (t.substr(0, lower.size()) == lower && lower.size() < t.size()) {
-                        // Partial prefix match — need more tokens
-                        return;
+                    if (t.substr(0, lower.size()) == lower && lower.size() < t.size()) return;
+                }
+                if (matched) continue;
+
+                // Try open tool call tags
+                for (const char* tag : OPEN_TOOL_TAGS) {
+                    std::string t(tag);
+                    if (lower == t) {
+                        in_tool_call_ = true;
+                        buffer_.clear();
+                        matched = true;
+                        break;
                     }
+                    if (t.substr(0, lower.size()) == lower && lower.size() < t.size()) return;
+                }
+                if (matched) continue;
+
+                // Try close tool call tags
+                for (const char* tag : CLOSE_TOOL_TAGS) {
+                    std::string t(tag);
+                    if (lower == t) {
+                        in_tool_call_ = false;
+                        buffer_.clear();
+                        matched = true;
+                        break;
+                    }
+                    if (t.substr(0, lower.size()) == lower && lower.size() < t.size()) return;
                 }
                 if (matched) continue;
 
@@ -130,7 +153,9 @@ namespace Utils {
     };
 
     // Static member definitions (C++14-compatible)
-    constexpr const char* ThoughtFilter::OPEN_TAGS[];
-    constexpr const char* ThoughtFilter::CLOSE_TAGS[];
+    constexpr const char* ThoughtFilter::OPEN_THOUGHT_TAGS[];
+    constexpr const char* ThoughtFilter::CLOSE_THOUGHT_TAGS[];
+    constexpr const char* ThoughtFilter::OPEN_TOOL_TAGS[];
+    constexpr const char* ThoughtFilter::CLOSE_TOOL_TAGS[];
 
 }

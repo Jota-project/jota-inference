@@ -21,6 +21,7 @@
 #include "../core/Engine.h"
 #include "../core/SessionManager.h"
 #include "../hardware/Monitor.h"
+#include "../config/AppConfig.h"
 
 namespace Server {
 
@@ -36,7 +37,8 @@ namespace Server {
 class WsServer {
 public:
     WsServer(Core::Engine& engine, Hardware::Monitor& monitor, 
-             int port = 3000, int ctx_size = 512);
+             int port = Core::AppConfig::get().server_port, 
+             int ctx_size = Core::AppConfig::get().ctx_size);
     ~WsServer();
 
     // Start the server loop (blocking)

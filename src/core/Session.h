@@ -35,7 +35,8 @@ namespace Core {
 
         // Run inference on this session
         Metrics generate(const std::string& prompt, TokenCallback callback,
-                         float temp = 0.7f, float top_p = 0.9f, int max_tokens = -1);
+                         float temp = 0.7f, float top_p = 0.9f, 
+                         int max_tokens = -1, const std::string& grammar = "");
 
         // Abort current generation
         void abort();

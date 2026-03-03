@@ -7,6 +7,7 @@
 #include "ClientAuth.h"
 #include "services/ModelResolver.h"
 #include "Logger.h"
+#include "AppConfig.h"
 
 // Helper to get file size
 unsigned long long getFileSize(const std::string& filename) {
@@ -20,8 +21,11 @@ int main(int argc, char** argv) {
     if (!Core::EnvLoader::load()) {
         IC_LOG_WARN("Failed to load .env file. using system environment or defaults.");
     }
+    
+    // 0.1 Load centralized config
+    Core::AppConfig::get().load();
 
-    // 0.1 Verify JotaDB Connection (Heartbeat)
+    // 0.2 Verify JotaDB Connection (Heartbeat)
     IC_LOG_INFO("JOTADB AUTHENTICATION VERIFICATION started");
     {
         Server::ClientAuth auth;
@@ -37,9 +41,9 @@ int main(int argc, char** argv) {
 
     std::string modelPath;
     std::string initialPrompt;
-    int port = 3000;
+    int port = Core::AppConfig::get().server_port;
     int gpuLayers = -1;  // -1 = auto-detect
-    int ctxSize = 512;
+    int ctxSize = Core::AppConfig::get().ctx_size;
     
     // Parse arguments
     bool hasNamedArgs = false;
@@ -92,7 +96,7 @@ int main(int argc, char** argv) {
                 IC_LOG_INFO("Retrieved default model configuration from DB.");
                 modelPath = dbConfig.modelPath;
                 if (gpuLayers == -1) gpuLayers = dbConfig.n_gpu_layers;
-                if (ctxSize == 512) ctxSize = dbConfig.ctx_size;
+                if (ctxSize == Core::AppConfig::get().ctx_size) ctxSize = dbConfig.ctx_size;
             } else {
                 IC_LOG_WARN("Failed to fetch configuration for default model. Starting without a pre-loaded model.");
             }

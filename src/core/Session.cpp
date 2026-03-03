@@ -2,6 +2,7 @@
 #include "Exceptions.h"
 #include "LlamaLogger.h"
 #include "Logger.h"
+#include "AppConfig.h"
 #include <chrono>
 #include <cstring>
 
@@ -21,8 +22,10 @@ namespace Core {
         // Create context for this session
         auto cparams = llama_context_default_params();
         cparams.n_ctx = ctx_size;
-        cparams.n_batch = 512;   // Logical batch size
-        cparams.n_ubatch = 512;  // Physical batch size
+        // n_batch must be >= the largest prompt we'll ever decode at once.
+        // Tying it to n_ctx avoids GGML_ASSERT(n_tokens_all <= cparams.n_batch).
+        cparams.n_batch = std::min(ctx_size, AppConfig::get().n_batch);
+        cparams.n_ubatch = std::min(ctx_size, AppConfig::get().n_ubatch);
         
         ctx_ = llama_init_from_model(model_, cparams);
         if (!ctx_) {
@@ -122,7 +125,8 @@ namespace Core {
     };
 
     Metrics Session::generate(const std::string& prompt, TokenCallback callback,
-                               float temp, float top_p, int max_tokens) {
+                               float temp, float top_p, int max_tokens, 
+                               const std::string& grammar) {
         Metrics metrics;
         
         if (!ctx_) {
@@ -140,8 +144,23 @@ namespace Core {
         auto start_time = std::chrono::high_resolution_clock::now();
         bool is_first_token = true;
 
-        // 1. Tokenize
+        // 1. Tokenize + guard: truncate if prompt exceeds context capacity.
         std::vector<llama_token> tokens_list = tokenize(prompt, true);
+
+        const int n_ctx = llama_n_ctx(ctx_);
+        // Reserve at least 1 slot for the first generated token.
+        const int max_prompt_tokens = n_ctx - 1;
+        if ((int)tokens_list.size() > max_prompt_tokens) {
+            IC_LOG_WARN("Prompt exceeds context window — truncating oldest tokens", {
+                {"session_id", session_id_},
+                {"prompt_tokens", (int)tokens_list.size()},
+                {"n_ctx", n_ctx},
+                {"truncated_to", max_prompt_tokens}
+            });
+            // Keep the LAST max_prompt_tokens tokens (most recent context).
+            tokens_list.erase(tokens_list.begin(),
+                              tokens_list.begin() + (int(tokens_list.size()) - max_prompt_tokens));
+        }
 
         // 2. Prepare Sampler (RAII) — dynamic chain based on temp
         auto sparams = llama_sampler_chain_default_params();
@@ -155,6 +174,18 @@ namespace Core {
             llama_sampler_chain_add(samplerGuard.smpl, llama_sampler_init_top_p(top_p, 1));
             llama_sampler_chain_add(samplerGuard.smpl, llama_sampler_init_temp(temp));
             llama_sampler_chain_add(samplerGuard.smpl, llama_sampler_init_dist(0));
+        }
+
+        // Apply grammar constraint if provided
+        if (!grammar.empty()) {
+            const llama_vocab* vocab = llama_model_get_vocab(model_);
+            struct llama_sampler* smpl_grammar = llama_sampler_init_grammar(vocab, grammar.c_str(), "root");
+            if (smpl_grammar) {
+                llama_sampler_chain_add(samplerGuard.smpl, smpl_grammar);
+                IC_LOG_DEBUG("Grammar sampler injected", {{"session_id", session_id_}});
+            } else {
+                IC_LOG_WARN("Failed to parse grammar string", {{"session_id", session_id_}});
+            }
         }
 
         // 3. Prepare Batch (RAII)

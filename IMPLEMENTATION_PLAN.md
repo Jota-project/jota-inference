@@ -16,6 +16,8 @@ The system has been successfully implemented with the following enhancements bey
 - ✅ **Real-time Metrics** - GPU monitoring and per-session stats
 - ✅ **WebSocket Protocol** - Extended with AUTH and session operations
 - ✅ **Smart GPU Split** - Auto-detection of optimal layer distribution
+- ✅ **Tool Calling / JSON Grammar** - Forced JSON schema support via grammar and `<tool_call>` tag routing
+- ✅ **Centralized Config (AppConfig)** - Configurable environment parameters protecting context window bounds
 
 ### Architecture Implemented
 

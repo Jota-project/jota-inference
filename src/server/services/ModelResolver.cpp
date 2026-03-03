@@ -1,6 +1,7 @@
 #include "ModelResolver.h"
 #include "EnvLoader.h"
 #include "Logger.h"
+#include "AppConfig.h"
 #include <httplib.h>
 
 namespace Server {
@@ -112,7 +113,7 @@ bool ModelResolver::fetchModelConfig(const std::string& model_id, Core::EngineCo
                     // Store IDs and basic config
                     out_config.modelId = model_id;
                     out_config.n_gpu_layers = item.value("gpu_layers", -1);
-                    out_config.ctx_size = item.value("context_size", 512);
+                    out_config.ctx_size = item.value("context_size", Core::AppConfig::get().ctx_size);
 
                     // Path Translation
                     std::string raw_path = item["file_path"].get<std::string>();
