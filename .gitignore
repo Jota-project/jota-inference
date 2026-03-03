@@ -2,6 +2,7 @@
 build/
 build_fast/
 build_test/
+build_unit/
 bin/
 lib/
 *.d
