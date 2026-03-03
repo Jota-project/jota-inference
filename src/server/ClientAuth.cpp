@@ -13,10 +13,10 @@ namespace Server {
     void ClientAuth::initJotaDB() {
         // Load configuration using EnvLoader
         jota_db_url_ = Core::EnvLoader::get("JOTA_DB_URL", "https://green-house.local/api/db");
-        jota_db_sk_ = Core::EnvLoader::get("JOTA_DB_SK", "");
+        jota_db_sk_ = Core::EnvLoader::get("JOTA_DB_SK");
         
         if (jota_db_sk_.empty()) {
-            IC_LOG_WARN("JOTA_DB_SK or JOTA_DB_USR is not set. JotaDB auth requests may fail.");
+            IC_LOG_WARN("JOTA_DB_SK is not set. JotaDB auth requests may fail.");
         }
     }
 

@@ -19,10 +19,13 @@ python3 run_all_tests.py
 Located in `tests/`, built with `cmake`, and executed via `./build/run_tests`.
 Uses **Catch2 v3.4.0**.
 
-| File | Description |
-| :--- | :--- |
-| `tests/test_protocol.cpp` | **Protocol Verification**: Validates JSON serialization/deserialization of WebSocket messages and ensures OpCode constants match the spec. |
-| `tests/test_auth.cpp` | **Authentication Logic**: Tests `ClientAuth` class methods (`loadConfig`, `authenticate`, `getClientConfig`) in isolation using temporary config files. |
+The testing framework has been optimized for speed by isolating the Catch2 main execution macro into `tests/test_main.cpp`. This prevents full recompilation when modifying individual test files.
+
+| File | Description | Key Scenarios / Inner Workings |
+| :--- | :--- | :--- |
+| `tests/test_protocol.cpp` | **Protocol Verification** | Validates JSON serialization/deserialization for endpoints like `InferenceParams` and `SessionContext`. Hard-checks all `OpCodes` (e.g., `COMMAND_LIST_MODELS`, `COMMAND_LOAD_MODEL`, `SUBSCRIBE_METRICS`) against `Protocol.h` using granular `CHECK` assertions for maximum error visibility. |
+| `tests/test_auth.cpp` | **Authentication & Security** | Verifies `ClientAuth`. It boots a local `httplib` mock server to simulate `JotaDB` responses. Specifically tests robust edge cases like empty strings mapping correctly to HTTP headers (`X-Service-ID` & `X-API-Key`) and cache hits. |
+| `tests/test_env.cpp` | **Configuration Loading** | Generates temporary `.env` files to prove that `EnvLoader` prioritizes explicit config files over system defaults while handling malformed keys or spacing anomalies appropriately. |
 
 ### 2. Integration Tests (Python - Pytest)
 Located in `tests/integration/`. These tests validate the full end-to-end flow of the `InferenceCore` server over WebSockets, interacting with the real local `JotaDB` SQLite database for authentication and model data.
@@ -58,9 +61,12 @@ The integration tests no longer use hardcoded credentials. You can override test
 
 ### Unit Tests (C++)
 
+By default, unit tests are not compiled to save time. You must explicitly set `BUILD_TESTS=ON` during the CMake generation phase.
+
 ```bash
-cd build
-make run_tests
+mkdir -p build && cd build
+cmake .. -DBUILD_TESTS=ON
+make run_tests -j$(nproc)
 ./run_tests
 ```
 

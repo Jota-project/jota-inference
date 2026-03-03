@@ -185,6 +185,7 @@ if(BUILD_TESTS)
         src/logging/Logger.cpp
         src/server/ClientAuth.cpp
         src/config/EnvLoader.cpp
+        tests/test_main.cpp
         tests/test_protocol.cpp
         tests/test_auth.cpp
         tests/test_env.cpp
@@ -197,6 +198,7 @@ if(BUILD_TESTS)
         src/server
         src/config
         src/logging
+        src/hardware
         src/utils
         tests
     )

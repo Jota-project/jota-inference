@@ -12,8 +12,8 @@ class MockJotaDB {
 public:
     MockJotaDB(int port) : svr_(), port_(port), running_(false) {
         svr_.Get("/auth/internal", [](const httplib::Request& req, httplib::Response& res) {
-            std::string client_id = req.get_param_value("client_id");
-            std::string api_key = req.get_param_value("api_key");
+            std::string client_id = req.get_header_value("X-Service-ID");
+            std::string api_key = req.get_header_value("X-API-Key");
             
             // Check Authorization Header
             if (req.has_header("Authorization")) {
@@ -22,13 +22,13 @@ public:
                      res.status = 401;
                      return;
                 }
-            } else {
-                // For test simplicity, we might enforce header check
-                // res.status = 401; return; 
             }
 
             json response;
-            if (client_id == "valid_user" && api_key == "secret123") {
+            if (client_id.empty() || api_key.empty()) {
+                response["authorized"] = false;
+                response["error"] = "Empty credentials";
+            } else if (client_id == "valid_user" && api_key == "secret123") {
                 response["authorized"] = true;
                 response["config"] = {
                     {"max_sessions", 5},
@@ -74,40 +74,38 @@ private:
 };
 
 TEST_CASE("ClientAuth: JotaDB Integration", "[auth]") {
-    // Start Mock Server
     int port = 8090;
     MockJotaDB mockDb(port);
     mockDb.start();
 
-    // Setup Environment for ClientAuth
     std::string url = "http://localhost:" + std::to_string(port);
     setenv("JOTA_DB_URL", url.c_str(), 1);
     setenv("JOTA_SK", "test_sk", 1);
 
-    ClientAuth auth; // Constructor calls initJotaDB which reads env
+    ClientAuth auth;
 
     SECTION("Authenticate Valid User") {
         REQUIRE(auth.authenticate("valid_user", "secret123") == true);
         
-        // Verify Config Loaded
         ClientConfig cfg = auth.getClientConfig("valid_user");
-        REQUIRE(cfg.max_sessions == 5);
-        REQUIRE(cfg.priority == "high");
+        CHECK(cfg.max_sessions == 5);
+        CHECK(cfg.priority == "high");
     }
 
-    SECTION("Authenticate Invalid User") {
-        REQUIRE(auth.authenticate("invalid_user", "wrong") == false);
-        REQUIRE(auth.clientExists("invalid_user") == false);
+    SECTION("Authenticate Invalid User (Incorrect Credentials)") {
+        CHECK(auth.authenticate("invalid_user", "wrong") == false);
+        CHECK(auth.clientExists("invalid_user") == false);
+    }
+    
+    SECTION("Authenticate Edge Cases (Empty credentials)") {
+        CHECK(auth.authenticate("", "secret123") == false);
+        CHECK(auth.authenticate("valid_user", "") == false);
+        CHECK(auth.authenticate("", "") == false);
     }
 
     SECTION("Cache Hit") {
-        // First call hits DB
         REQUIRE(auth.authenticate("valid_user", "secret123") == true);
-        
-        // Stop DB to prove cache is used
         mockDb.stop();
-        
-        // Second call should succeed from cache
-        REQUIRE(auth.authenticate("valid_user", "secret123") == true);
+        CHECK(auth.authenticate("valid_user", "secret123") == true);
     }
 }
