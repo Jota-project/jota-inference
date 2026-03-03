@@ -44,6 +44,9 @@ namespace Core {
         // Close all sessions (cleanup on shutdown)
         void closeAllSessions();
 
+        // Get all active sessions (e.g., for Watchdog)
+        std::vector<Session*> getAllSessions() const;
+
         // Get count of active sessions for a client
         int getClientSessionCount(const std::string& client_id) const;
 

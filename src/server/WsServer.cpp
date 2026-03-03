@@ -55,15 +55,70 @@ WsServer::~WsServer() {
         inferenceService_->shutdown();
     }
 
+    running_ = false;
+    if (watchdogThread_.joinable()) {
+        watchdogThread_.join();
+    }
+
     // Cleanup
     // sessionManager_ is unique_ptr, will be deleted automatically
 
     IC_LOG_INFO("WsServer destroyed");
 }
 
+void WsServer::watchdogLoop() {
+    while (running_) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (!running_) break;
+
+        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+
+        auto sessions = sessionManager_->getAllSessions();
+        for (auto* session : sessions) {
+            if (session && session->isGenerating()) {
+                auto lastActivity = session->getLastActivityMs();
+                if (lastActivity > 0 && (now - lastActivity) > watchdog_timeout_sec_ * 1000) {
+                    std::string session_id = session->getSessionId();
+                    std::string client_id = session->getClientId();
+
+                    IC_LOG_WARN("Watchdog: Session timeout detected, aborting", {
+                        {"session_id", session_id},
+                        {"timeout_sec", watchdog_timeout_sec_}
+                    });
+
+                    // Abort inference backend
+                    inferenceService_->abortTask(session_id);
+
+                    // Send error via uWS loop safely
+                    if (loop_) {
+                        loop_->defer([this, session_id, client_id]() {
+                            std::lock_guard<std::mutex> lock(clientsMutex_);
+                            for (auto* ws : connectedClients_) {
+                                auto* data = ws->getUserData();
+                                if (data && data->client_id == client_id) {
+                                    json response = {
+                                        {"op", Op::ERROR},
+                                        {"session_id", session_id},
+                                        {"error", "Session timeout: Model blocked"}
+                                    };
+                                    ws->send(response.dump(), uWS::OpCode::TEXT);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
 void WsServer::run() {
     struct uWS::Loop* loop = uWS::Loop::get();
     this->loop_ = loop;
+
+    running_ = true;
+    watchdogThread_ = std::thread([this]() { watchdogLoop(); });
 
     // Start metrics service with broadcast callback
     metricsService_->setMetricsHandler(metricsHandler_.get());

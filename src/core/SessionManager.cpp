@@ -198,6 +198,16 @@ namespace Core {
         }
     }
 
+    std::vector<Session*> SessionManager::getAllSessions() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::vector<Session*> result;
+        result.reserve(sessions_.size());
+        for (const auto& pair : sessions_) {
+            result.push_back(pair.second.get());
+        }
+        return result;
+    }
+
     int SessionManager::getClientSessionCount(const std::string& client_id) const {
         std::lock_guard<std::mutex> lock(mutex_);
         

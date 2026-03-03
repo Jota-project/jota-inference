@@ -1,6 +1,8 @@
 #pragma once
 
 #include <App.h> // uWebSockets
+#include <atomic>
+#include <thread>
 #include <memory>
 #include <set>
 #include <mutex>
@@ -41,6 +43,13 @@ public:
     void run();
 
 private:
+    void watchdogLoop();
+
+    // Watchdog config
+    std::atomic<bool> running_{false};
+    std::thread watchdogThread_;
+    int watchdog_timeout_sec_ = 10;
+
     // Core dependencies
     Core::Engine& engine_;
     std::unique_ptr<Core::SessionManager> sessionManager_;

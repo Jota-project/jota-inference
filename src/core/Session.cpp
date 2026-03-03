@@ -48,6 +48,11 @@ namespace Core {
         abort_flag_ = true;
     }
 
+    void Session::updateActivity() {
+        last_activity_ms_.store(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count());
+    }
+
     void Session::setContext(Server::SessionContext ctx) {
         std::lock_guard<std::mutex> lock(context_mutex_);
         context_ = std::move(ctx);
@@ -127,6 +132,7 @@ namespace Core {
 
         state_ = SessionState::GENERATING;
         abort_flag_ = false;
+        updateActivity();
 
         // Clear KV cache
         llama_memory_clear(llama_get_memory(ctx_), false);
@@ -199,6 +205,7 @@ namespace Core {
 
             std::string piece = tokenToPiece(new_token_id);
             metrics.tokens_generated++;
+            updateActivity();
 
             // Enforce max_tokens limit
             if (max_tokens > 0 && metrics.tokens_generated >= max_tokens) {

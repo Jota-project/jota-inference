@@ -17,12 +17,13 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copiar el código fuente y submódulos (llama.cpp)
+# Copiar solo archivos necesarios para compilar llama.cpp / submódulos primero si es posible, o todo el contexto 
+# si no hay dependencias separadas, pero dejando a CMake crear el build dir de cero.
 COPY . .
 
 # Configurar y compilar con soporte para CUDA
 #
-RUN mkdir build && cd build && \
+RUN mkdir -p build && cd build && \
     cmake -G Ninja -DUSE_CUDA=ON -DBUILD_TESTS=OFF ..
 
 # Compilar con verbose para ver errores y limitar hilos para evitar OOM

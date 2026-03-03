@@ -50,6 +50,10 @@ namespace Core {
         std::string getModelId() const { return model_id_; }
         SessionState getState() const { return state_; }
         bool isGenerating() const { return state_ == SessionState::GENERATING; }
+        
+        // Timeout tracking
+        int64_t getLastActivityMs() const { return last_activity_ms_.load(); }
+        void updateActivity();
 
     private:
         std::string session_id_;
@@ -59,6 +63,7 @@ namespace Core {
         struct llama_model* model_ = nullptr;  // Reference to shared model
         SessionState state_ = SessionState::IDLE;
         std::atomic<bool> abort_flag_{false};
+        std::atomic<int64_t> last_activity_ms_{0};
         Server::SessionContext context_;
         mutable std::mutex context_mutex_;
 

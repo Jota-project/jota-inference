@@ -10,3 +10,6 @@ LICENSE
 ci/
 docs/
 tests/
+models/
+models/*.gguf
+logs/
