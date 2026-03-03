@@ -13,20 +13,12 @@ except ImportError:
     pass # python-dotenv is not strictly required if running with inline envs
 
 # Configuration
-SERVER_BIN = "./build/InferenceCore"
-MODEL_PATH = "models/LFM/LFM2.5-1.2B-Thinking-Q4_K_M.gguf"
+SERVER_BIN = "./build_fast/InferenceCore"
 PORT = 8001  # Use a different port to avoid conflicts with running dev instances
 HOST = "localhost"
 URI = f"ws://{HOST}:{PORT}"
 
-# Tests to run
-TEST_FILES = [
-    "test_auth.py",
-    "test_client.py",
-    "test_safety.py",
-    # "test_multi_session.py", # This might take longer, uncomment if needed
-    # "test_metrics_subscription.py"
-]
+# Tests will be auto-discovered by pytest in tests/integration/
 
 def check_server_ready(host, port, timeout=30):
     """Check if the server is accepting connections."""
@@ -46,46 +38,34 @@ def run_tests():
     # 1. Start the server
     print(f"📦 Launching server manually on port {PORT}...")
     
-    # Check if binary exists
+    # Check if binary exists, optionally compile it automatically or warn
     if not os.path.exists(SERVER_BIN):
         print(f"❌ Server binary not found at {SERVER_BIN}")
-        print("   Please build the project first: mkdir build && cd build && cmake .. && make -j")
-        sys.exit(1)
-
-    # Check if model exists
-    if not os.path.exists(MODEL_PATH):
-        print(f"❌ Model not found at {MODEL_PATH}")
-        print("   Please download a model or update MODEL_PATH in this script.")
-        # Try to find any .gguf file in models/
-        print("   Searching for other models...")
-        found_model = False
-        for root, dirs, files in os.walk("models"):
-            for file in files:
-                if file.endswith(".gguf"):
-                    MODEL_PATH_ALT = os.path.join(root, file)
-                    print(f"   Using found model: {MODEL_PATH_ALT}")
-                    MODEL_PATH = MODEL_PATH_ALT
-                    found_model = True
-                    break
-            if found_model: break
+        print("   Attempting to build using build_fast...")
         
-        if not found_model:
+        # Build logic
+        os.makedirs("build_fast", exist_ok=True)
+        build_cmd = "./build_fast.sh"
+        build_result = subprocess.run(build_cmd, shell=True)
+        
+        if build_result.returncode != 0:
+            print(f"❌ Build failed.")
             sys.exit(1)
 
     # Prepare command
     cmd = [
         SERVER_BIN,
-        "--model", MODEL_PATH,
         "--port", str(PORT),
-        "--ctx-size", "512", # Keep it light/fast for testing
+        "--ctx-size", "2048", # Increased to avoid KV cache full during concurrent test
         "--gpu-layers", "0"  # Use CPU for stability in CI/Test env if needed, or "-1" for auto
     ]
     
-    # Start server process
+    # Start server process (write output to file to avoid pipe buffer deadlocks)
+    server_log_file = open("server_test.log", "w+")
     server_proc = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=server_log_file,
+        stderr=subprocess.STDOUT,  # Redirect stderr to stdout stream
         text=True
     )
     
@@ -96,44 +76,13 @@ def run_tests():
         else:
             print("❌ Server failed to start within timeout.")
             print("--- Server Output ---")
-            print(server_proc.stdout.read())
-            print(server_proc.stderr.read())
+            server_log_file.seek(0)
+            print(server_log_file.read())
             raise RuntimeError("Server start failed")
 
         # 2. Run Tests
-        failed_tests = []
-        passed_tests = []
+        print("\n🏗️  Running Tests with Pytest...\n")
         
-        # Need to patch the URI in the test files or pass it via env var
-        # Since test files mostly hardcode "ws://localhost:3000", we might need to sed them
-        # or better, let's update test files to read from ENV if available.
-        # For now, let's use a quick sed hack on a temp copy or just sed existing files if we are brave.
-        # Actually, let's just assume the user runs this script and we set the PORT env var
-        # BUT the python scripts likely don't read it.
-        # Let's check `test_client.py` content again.
-        # It has `uri = "ws://localhost/api/inference/"` or similar. 
-        # Wait, the `README` said port 3000 but the code I saw in `test_client.py` (step 13) 
-        # had `uri = "ws://localhost/api/inference/"`. That looks like a reverse proxy path?
-        # Or maybe the port was omitted (defaults to 80?).
-        
-        # Let's re-read test_client.py to be sure about the URI.
-        # Step 13: `uri = "ws://localhost/api/inference/"`
-        # This implies it expects a reverse proxy or port 80. 
-        # If I run on 8081, I need to change that.
-        
-        # STRATEGY: 
-        # I will inject a small "test_config.py" or just write a wrapper 
-        # that monkeypatches websockets.connect? No that's too complex.
-        # 
-        # Simpler: I will temporary modify the files or 
-        # create temporary test files with the correct PORT.
-        # 
-        # Actually, best approach for *future* is to modify the test files 
-        # to accept an environment variable.
-        
-        print("\n🏗️  Running Tests...\n")
-        
-        # Pass existing environment + explicitly set TEST_URI and keys
         my_env = os.environ.copy()
         my_env["TEST_URI"] = URI
         if "IC_TEST_CLIENT_ID" not in my_env:
@@ -141,47 +90,24 @@ def run_tests():
         if "IC_TEST_API_KEY" not in my_env:
              my_env["IC_TEST_API_KEY"] = "inference_center_8f29c1a0e63847b592d8e428f7a6c9d0b51e39a02f374c18a5927d"
         
-        for test_file in TEST_FILES:
-            if not os.path.exists(test_file):
-                print(f"⚠️  Skipping {test_file} (not found)")
-                continue
-                
-            print(f"👉 Running {test_file}...")
-            try:
-                # Use venv python if available
-                python_bin = sys.executable
-                if os.path.exists("venv/bin/python"):
-                    python_bin = "venv/bin/python"
-                elif os.path.exists(".venv/bin/python"):
-                     python_bin = ".venv/bin/python"
+        python_bin = sys.executable
+        if os.path.exists("venv/bin/python"):
+            python_bin = "venv/bin/python"
+        elif os.path.exists(".venv/bin/python"):
+             python_bin = ".venv/bin/python"
 
-                result = subprocess.run(
-                    [python_bin, test_file],
-                    env=my_env,
-                    capture_output=True,
-                    text=True,
-                    timeout=60 # 1 min timeout per test
-                )
-                
-                if result.returncode == 0:
-                    print(f"✅ {test_file} PASSED")
-                    passed_tests.append(test_file)
-                else:
-                    print(f"❌ {test_file} FAILED")
-                    print("--- Test Output ---")
-                    print(result.stdout)
-                    print(result.stderr)
-                    failed_tests.append(test_file)
-            except Exception as e:
-                print(f"❌ {test_file} ERROR: {e}")
-                failed_tests.append(test_file)
-                
-        # 3. Summary
-        print("\n📊 Test Summary")
-        print(f"Passed: {len(passed_tests)}")
-        print(f"Failed: {len(failed_tests)}")
+        result = subprocess.run(
+            [python_bin, "-m", "pytest", "tests/integration/", "-v", "-s"],
+            env=my_env,
+        )
         
-        if failed_tests:
+        if result.returncode == 0:
+            print("\n✅ All tests PASSED")
+        else:
+            print("\n❌ Tests FAILED")
+            print("--- Server Logic Output ---")
+            server_log_file.seek(0)
+            print(server_log_file.read())
             sys.exit(1)
             
     finally:

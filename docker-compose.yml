@@ -18,11 +18,11 @@ services:
       # Montar la carpeta de logs
       - ./logs:/app/logs
       # Montar la carpeta de modelos del host
-      - ./models:/models
+      - /home/sito/JotaDB/models:/home/sito/JotaDB/models
       # Montar la configuración de entorno
       - ./.env:/app/.env
     environment:
-      - MODEL_PATH=/models/LFM/LFM2.5-1.2B-Thinking-Q4_K_M.gguf
+      - MODELS_PATH=/home/sito/JotaDB/models
       - PORT=8001
     env_file:
       - .env

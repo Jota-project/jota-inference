@@ -1,6 +1,7 @@
 # Build directories
 build/
 build_fast/
+build_test/
 bin/
 lib/
 *.d
@@ -37,3 +38,5 @@ dl_models_env/
 Models/
 test_env/
 .venv/
+__pycache__/
+.pytest_cache/
