@@ -1,0 +1,38 @@
+# Configuración de Dependabot para jota-inference
+version: 2
+updates:
+  # 1. Actualización de imágenes de Docker
+  # Revisa el Dockerfile para mantener actualizadas las bases de NVIDIA/CUDA
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # 2. Actualización de GitHub Actions
+  # Mantiene tus workflows de CI (.github/workflows/test.yml) con las últimas versiones
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # 3. Actualización de Submódulos de Git
+  # Crucial para recibir mejoras de rendimiento en llama.cpp y whisper.cpp
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "submodules"
+    # Opcional: Si prefieres validar manualmente cambios grandes en los motores de IA
+    # puedes pedir que solo cree PRs de seguridad o parches.
