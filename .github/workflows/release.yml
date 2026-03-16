@@ -32,8 +32,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-          # Cache para que las ejecuciones futuras sean más rápidas
-          cache: 'npm'
 
       - name: Install Semantic Release
         run: |
