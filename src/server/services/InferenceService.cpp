@@ -87,7 +87,7 @@ void InferenceService::processTask(Task& task) {
     if (!session) {
         IC_LOG_ERROR("InferenceService: Session not found", {{"session_id", task.session_id}});
         if (task.onError) {
-            task.onError(task.session_id, "Session not found");
+            task.onError(task.session_id, Err::SESSION_NOT_FOUND);
         }
         return;
     }
@@ -114,30 +114,44 @@ void InferenceService::processTask(Task& task) {
         });
     }
 
-    // --- System Prompt Concatenation ---
+    // --- Prompt Construction ---
     std::string final_prompt;
-
-    // 1. Context messages (chat history)
     auto context = session->getContext();
-    if (!context.messages.empty()) {
-        for (const auto& msg : context.messages) {
-            final_prompt += msg.role + ": " + msg.content + "\n";
-        }
-        final_prompt += "\n";
 
+    // Build ordered message list: system → history → current user turn
+    std::vector<Server::ChatMessage> messages;
+    if (!system_prompt.empty()) {
+        messages.push_back({"system", system_prompt});
+    }
+    for (const auto& msg : context.messages) {
+        messages.push_back(msg);
+    }
+    messages.push_back({"user", task.params.prompt});
+
+    if (!context.messages.empty()) {
         IC_LOG_DEBUG("Context applied", {
             {"session_id", task.session_id},
             {"context_messages", (int)context.messages.size()}
         });
     }
 
-    // 2. System prompt (from profile or client)
-    if (!system_prompt.empty()) {
-        final_prompt += system_prompt + "\n\n";
-    }
+    // Apply model's embedded chat template
+    final_prompt = session->formatWithChatTemplate(messages, /*add_assistant_start=*/true);
+    const bool used_template = !final_prompt.empty();
 
-    // 3. Current user prompt
-    final_prompt += task.params.prompt;
+    if (final_prompt.empty()) {
+        // Fallback: model has no embedded template — use simple concatenation
+        if (!context.messages.empty()) {
+            for (const auto& msg : context.messages) {
+                final_prompt += msg.role + ": " + msg.content + "\n";
+            }
+            final_prompt += "\n";
+        }
+        if (!system_prompt.empty()) {
+            final_prompt += system_prompt + "\n\n";
+        }
+        final_prompt += task.params.prompt;
+    }
 
     activeGenerations_++;
 
@@ -153,7 +167,7 @@ void InferenceService::processTask(Task& task) {
             std::string validToken = Utils::sanitizeUtf8(token);
             filter.feed(validToken);
             return true;
-        }, temp, top_p, max_tokens, task.params.grammar);
+        }, temp, top_p, max_tokens, task.params.grammar, used_template);
 
         // Flush any remaining buffered tokens (e.g. partial tag at end)
         filter.flush();
@@ -162,6 +176,14 @@ void InferenceService::processTask(Task& task) {
             std::lock_guard<std::mutex> lock(metricsMutex_);
             lastMetrics_ = metrics;
         }
+
+        IC_LOG_INFO("Inference complete", {
+            {"session_id", task.session_id},
+            {"tokens_generated", metrics.tokens_generated},
+            {"ttft_ms", metrics.ttft_ms},
+            {"total_ms", metrics.total_time_ms},
+            {"tps", metrics.tps}
+        });
 
         if (task.onComplete) {
             task.onComplete(task.session_id, metrics);
@@ -184,7 +206,7 @@ void InferenceService::processTask(Task& task) {
             {"error_type", "std::exception"}
         });
         if (task.onError) {
-            task.onError(task.session_id, "Internal server error");
+            task.onError(task.session_id, Err::INTERNAL_ERROR);
         }
     }
     

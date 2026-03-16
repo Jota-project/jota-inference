@@ -16,7 +16,8 @@ namespace Core {
 
     enum class SessionState {
         IDLE,
-        GENERATING,
+        PREFILLING,   // Actively running prompt evaluation (prefill) — not yet generating tokens
+        GENERATING,   // Generating tokens (decode loop)
         ERROR
     };
 
@@ -33,10 +34,14 @@ namespace Core {
         Session(const Session&) = delete;
         Session& operator=(const Session&) = delete;
 
-        // Run inference on this session
+        // Run inference on this session.
+        // Set parse_special=true when the prompt was produced by formatWithChatTemplate
+        // (special tokens like <|eot_id|> must be tokenized as their token IDs, and
+        // the template already embeds BOS so add_bos is skipped in that case).
         Metrics generate(const std::string& prompt, TokenCallback callback,
-                         float temp = 0.7f, float top_p = 0.9f, 
-                         int max_tokens = -1, const std::string& grammar = "");
+                         float temp = 0.7f, float top_p = 0.9f,
+                         int max_tokens = -1, const std::string& grammar = "",
+                         bool parse_special = false);
 
         // Abort current generation
         void abort();
@@ -50,11 +55,19 @@ namespace Core {
         std::string getClientId() const { return client_id_; }
         std::string getModelId() const { return model_id_; }
         SessionState getState() const { return state_; }
-        bool isGenerating() const { return state_ == SessionState::GENERATING; }
+        bool isPrefilling() const { return state_ == SessionState::PREFILLING; }
+        bool isGenerating() const { return state_ == SessionState::GENERATING || state_ == SessionState::PREFILLING; }
         
         // Timeout tracking
         int64_t getLastActivityMs() const { return last_activity_ms_.load(); }
         void updateActivity();
+
+        // Format a list of messages using the model's embedded chat template.
+        // Returns the formatted prompt string.
+        // Returns empty string if the model has no embedded template (caller should fall back).
+        std::string formatWithChatTemplate(
+            const std::vector<Server::ChatMessage>& messages,
+            bool add_assistant_start = true) const;
 
     private:
         std::string session_id_;
@@ -69,7 +82,7 @@ namespace Core {
         mutable std::mutex context_mutex_;
 
         // Helper methods (similar to Engine)
-        std::vector<llama_token> tokenize(const std::string& text, bool add_bos);
+        std::vector<llama_token> tokenize(const std::string& text, bool add_bos, bool parse_special = false);
         std::string tokenToPiece(llama_token token);
     };
 

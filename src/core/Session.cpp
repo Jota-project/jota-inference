@@ -70,19 +70,19 @@ namespace Core {
         return context_;
     }
 
-    std::vector<llama_token> Session::tokenize(const std::string& text, bool add_bos) {
+    std::vector<llama_token> Session::tokenize(const std::string& text, bool add_bos, bool parse_special) {
         int n_tokens_max = text.length() + (add_bos ? 1 : 0) + 1;
         std::vector<llama_token> tokens(n_tokens_max);
-        
+
         const llama_vocab* vocab = llama_model_get_vocab(model_);
 
-        int n_tokens = llama_tokenize(vocab, text.c_str(), text.length(), 
-                                       tokens.data(), n_tokens_max, add_bos, false);
-        
+        int n_tokens = llama_tokenize(vocab, text.c_str(), text.length(),
+                                       tokens.data(), n_tokens_max, add_bos, parse_special);
+
         if (n_tokens < 0) {
             tokens.resize(-n_tokens);
-            n_tokens = llama_tokenize(vocab, text.c_str(), text.length(), 
-                                      tokens.data(), tokens.size(), add_bos, false);
+            n_tokens = llama_tokenize(vocab, text.c_str(), text.length(),
+                                      tokens.data(), tokens.size(), add_bos, parse_special);
         }
 
         if (n_tokens >= 0) {
@@ -98,11 +98,68 @@ namespace Core {
         if (!model_) return "";
         char buf[256];
         const llama_vocab* vocab = llama_model_get_vocab(model_);
-        int n = llama_token_to_piece(vocab, token, buf, sizeof(buf), 0, true);
+        int n = llama_token_to_piece(vocab, token, buf, sizeof(buf), 0, false);
         if (n < 0) {
             return "";
         }
         return std::string(buf, n);
+    }
+
+    std::string Session::formatWithChatTemplate(
+            const std::vector<Server::ChatMessage>& messages,
+            bool add_assistant_start) const {
+
+        if (!model_ || messages.empty()) {
+            return "";
+        }
+
+        const char* tmpl = llama_model_chat_template(model_, nullptr);
+        if (!tmpl) {
+            IC_LOG_WARN("Model has no embedded chat template — using fallback formatting", {
+                {"session_id", session_id_}
+            });
+            return "";
+        }
+
+        // Keep strings alive while the llama_chat_message array is in use
+        std::vector<std::string> roles;
+        std::vector<std::string> contents;
+        roles.reserve(messages.size());
+        contents.reserve(messages.size());
+
+        std::vector<llama_chat_message> chat;
+        chat.reserve(messages.size());
+        for (const auto& msg : messages) {
+            roles.push_back(msg.role);
+            contents.push_back(msg.content);
+            chat.push_back({roles.back().c_str(), contents.back().c_str()});
+        }
+
+        // First call: probe required buffer size
+        int32_t n = llama_chat_apply_template(tmpl,
+                                              chat.data(), chat.size(),
+                                              add_assistant_start,
+                                              nullptr, 0);
+        if (n < 0) {
+            IC_LOG_WARN("llama_chat_apply_template returned error on size probe", {
+                {"session_id", session_id_}
+            });
+            return "";
+        }
+
+        std::vector<char> buf(n + 1);
+        n = llama_chat_apply_template(tmpl,
+                                      chat.data(), chat.size(),
+                                      add_assistant_start,
+                                      buf.data(), static_cast<int32_t>(buf.size()));
+        if (n < 0) {
+            IC_LOG_WARN("llama_chat_apply_template failed on render", {
+                {"session_id", session_id_}
+            });
+            return "";
+        }
+
+        return std::string(buf.data(), n);
     }
 
     // --- RAII Guards for llama.cpp resources ---
@@ -125,8 +182,8 @@ namespace Core {
     };
 
     Metrics Session::generate(const std::string& prompt, TokenCallback callback,
-                               float temp, float top_p, int max_tokens, 
-                               const std::string& grammar) {
+                               float temp, float top_p, int max_tokens,
+                               const std::string& grammar, bool parse_special) {
         Metrics metrics;
         
         if (!ctx_) {
@@ -134,7 +191,7 @@ namespace Core {
             throw InferenceBackendException("Session context is null", session_id_);
         }
 
-        state_ = SessionState::GENERATING;
+        state_ = SessionState::PREFILLING;
         abort_flag_ = false;
         updateActivity();
 
@@ -145,7 +202,10 @@ namespace Core {
         bool is_first_token = true;
 
         // 1. Tokenize + guard: truncate if prompt exceeds context capacity.
-        std::vector<llama_token> tokens_list = tokenize(prompt, true);
+        // When parse_special=true the prompt came from formatWithChatTemplate, which already
+        // embeds BOS (<|begin_of_text|>) — don't add it again.
+        const bool add_bos = !parse_special;
+        std::vector<llama_token> tokens_list = tokenize(prompt, add_bos, parse_special);
 
         const int n_ctx = llama_n_ctx(ctx_);
         // Reserve at least 1 slot for the first generated token.
@@ -216,6 +276,10 @@ namespace Core {
             throw InferenceBackendException("llama_decode failed during prompt evaluation", session_id_);
         }
 
+        // Prefill complete — transition to decode phase and reset watchdog timer
+        state_ = SessionState::GENERATING;
+        updateActivity();
+
         // 4. Generation Loop
         int n_cur = batch.n_tokens;
         const llama_vocab* vocab = llama_model_get_vocab(model_);
@@ -233,6 +297,10 @@ namespace Core {
             }
 
             if (llama_vocab_is_eog(vocab, new_token_id)) break;
+
+            // Stop on any control token (e.g. <|start_header_id|>, <|end_header_id|>)
+            // to prevent the model from generating extra assistant turns.
+            if (llama_vocab_is_control(vocab, new_token_id)) break;
 
             std::string piece = tokenToPiece(new_token_id);
             metrics.tokens_generated++;

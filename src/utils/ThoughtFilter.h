@@ -57,8 +57,6 @@ namespace Utils {
         static constexpr const char* CLOSE_TOOL_TAGS[] = {"</tool_call>"};
 
         std::string currentType() const {
-            if (in_tool_call_) return "tool_call";
-            if (in_thought_) return "thought";
             return "content";
         }
 
