@@ -18,11 +18,11 @@ services:
       # Montar la carpeta de logs
       - ./logs:/app/logs
       # Montar la carpeta de modelos del host
-      - /home/sito/JotaDB/models:/home/sito/JotaDB/models
+      - /home/sito/jota-db/models:/home/sito/jota-db/models
       # Montar la configuración de entorno
       - ./.env:/app/.env
     environment:
-      - MODELS_PATH=/home/sito/JotaDB/models
+      - MODELS_PATH=/home/sito/jota-db/models
       - PORT=8001
     env_file:
       - .env
