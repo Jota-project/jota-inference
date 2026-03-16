@@ -39,12 +39,12 @@ public:
         auto* data = ctx.getData();
         
         if (!data->authenticated) {
-            sendError(ctx, "Not authenticated");
+            sendError(ctx, Err::NOT_AUTHENTICATED);
             return;
         }
-        
+
         if (!payload.contains("model_id")) {
-            sendError(ctx, "Missing model_id");
+            sendError(ctx, Err::MISSING_FIELDS);
             return;
         }
         
@@ -55,13 +55,13 @@ public:
         bool success = modelResolver_->fetchModelConfig(model_id, config);
         
         if (!success) {
-            sendError(ctx, "ERROR_MODEL_NOT_FOUND");
+            sendError(ctx, Err::MODEL_NOT_FOUND);
             return;
         }
 
         // Safety check: do not unload or switch models while an inference is actively generating
         if (inferenceService_ && inferenceService_->getActiveGenerations() > 0) {
-            sendError(ctx, "ERROR_INFERENCE_IN_PROGRESS");
+            sendError(ctx, Err::INFERENCE_IN_PROGRESS);
             IC_LOG_WARN("Model switch rejected: Inference in progress", {{"client_id", data->client_id}});
             return;
         }
@@ -79,7 +79,7 @@ public:
             ctx.send(response);
             IC_LOG_INFO("Model loaded successfully", {{"model_id", model_id}});
         } else {
-            sendError(ctx, "ERROR_MODEL_NOT_FOUND"); // Model config arrived but engine failed to load it / file absent
+            sendError(ctx, Err::MODEL_NOT_FOUND); // Config retrieved but engine failed to load file
             IC_LOG_ERROR("Engine failed to load model", {{"model_id", model_id}});
         }
     }
@@ -94,7 +94,7 @@ public:
         auto* data = ctx.getData();
         
         if (!data->authenticated) {
-            sendError(ctx, "Not authenticated");
+            sendError(ctx, Err::NOT_AUTHENTICATED);
             return;
         }
         
@@ -111,7 +111,7 @@ public:
             };
             ctx.send(response);
         } else {
-            sendError(ctx, "Failed to retrieve available models");
+            sendError(ctx, Err::MODEL_LIST_FAILED);
         }
     }
 

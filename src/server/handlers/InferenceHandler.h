@@ -35,21 +35,13 @@ public:
         
         // Check authentication
         if (!data->authenticated) {
-            json response = {
-                {"op", Op::ERROR},
-                {"error", "Not authenticated"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::ERROR}, {"error", Err::NOT_AUTHENTICATED}});
             return;
         }
-        
+
         // Extract required fields
         if (!payload.contains("session_id") || !payload.contains("prompt")) {
-            json response = {
-                {"op", Op::ERROR},
-                {"error", "Missing session_id or prompt"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::ERROR}, {"error", Err::MISSING_FIELDS}});
             return;
         }
         
@@ -57,11 +49,7 @@ public:
 
         // Ensure there is actually a model loaded before starting inference
         if (!inferenceService_->getSessionManager()->isEngineLoaded()) {
-            json response = {
-                {"op", Op::ERROR},
-                {"error", "ERROR_NO_MODEL_LOADED"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::ERROR}, {"error", Err::NO_MODEL_LOADED}});
             IC_LOG_WARN("Inference rejected: No model loaded", {{"session_id", session_id}});
             return;
         }
@@ -137,11 +125,7 @@ public:
         
         // Check authentication
         if (!data->authenticated) {
-            json response = {
-                {"op", Op::ERROR},
-                {"error", "Not authenticated"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::ERROR}, {"error", Err::NOT_AUTHENTICATED}});
             return;
         }
 
@@ -149,11 +133,7 @@ public:
         if (payload.contains("session_id")) {
             session_id = payload["session_id"];
         } else {
-             json response = {
-                {"op", Op::ERROR},
-                {"error", "Missing session_id"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::ERROR}, {"error", Err::MISSING_FIELDS}});
             return;
         }
         

@@ -46,6 +46,31 @@ namespace Server {
         constexpr const char* LIST_MODELS_RESULT = "list_models_result";
     }
 
+    // Canonical error codes sent in {"op": "error", "error": "<code>"} messages.
+    // Clients should check "error" against these constants, not parse free text.
+    namespace Err {
+        // Authentication
+        constexpr const char* NOT_AUTHENTICATED     = "NOT_AUTHENTICATED";
+
+        // Session lifecycle
+        constexpr const char* SESSION_NOT_FOUND     = "SESSION_NOT_FOUND";
+        constexpr const char* SESSION_LIMIT_REACHED = "SESSION_LIMIT_REACHED";
+        constexpr const char* SESSION_CLOSE_FAILED  = "SESSION_CLOSE_FAILED";
+        constexpr const char* SESSION_TIMEOUT       = "SESSION_TIMEOUT";
+
+        // Model / inference
+        constexpr const char* NO_MODEL_LOADED       = "NO_MODEL_LOADED";
+        constexpr const char* MODEL_NOT_FOUND       = "MODEL_NOT_FOUND";
+        constexpr const char* MODEL_LIST_FAILED     = "MODEL_LIST_FAILED";
+        constexpr const char* INFERENCE_IN_PROGRESS = "INFERENCE_IN_PROGRESS";
+
+        // Input validation
+        constexpr const char* MISSING_FIELDS        = "MISSING_FIELDS";
+
+        // Internal
+        constexpr const char* INTERNAL_ERROR        = "INTERNAL_ERROR";
+    }
+
     // --- Session Context (extensible) ---
 
     struct ChatMessage {

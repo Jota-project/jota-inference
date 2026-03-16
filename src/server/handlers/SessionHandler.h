@@ -34,11 +34,7 @@ public:
         
         // Check authentication
         if (!data->authenticated) {
-            json response = {
-                {"op", Op::SESSION_ERROR},
-                {"error", "Not authenticated"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::SESSION_ERROR}, {"error", Err::NOT_AUTHENTICATED}});
             return;
         }
         
@@ -61,11 +57,7 @@ public:
                 {"client_id", data->client_id}
             });
         } else {
-            json response = {
-                {"op", Op::SESSION_ERROR},
-                {"error", "Failed to create session (limit reached)"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::SESSION_ERROR}, {"error", Err::SESSION_LIMIT_REACHED}});
         }
     }
     
@@ -79,52 +71,31 @@ public:
         
         // Check authentication
         if (!data->authenticated) {
-            json response = {
-                {"op", Op::ERROR},
-                {"error", "Not authenticated"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::ERROR}, {"error", Err::NOT_AUTHENTICATED}});
             return;
         }
-        
+
         // Extract session_id
         if (!payload.contains("session_id")) {
-            json response = {
-                {"op", Op::ERROR},
-                {"error", "Missing session_id"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::ERROR}, {"error", Err::MISSING_FIELDS}});
             return;
         }
-        
+
         std::string session_id = payload["session_id"];
-        
+
         // Verify ownership - get session and check client_id
         auto* session = sessionManager_->getSession(session_id);
         if (!session || session->getClientId() != data->client_id) {
-            json response = {
-                {"op", Op::ERROR},
-                {"error", "Session not found or access denied"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::ERROR}, {"error", Err::SESSION_NOT_FOUND}});
             return;
         }
-        
+
         // Close session
         if (sessionManager_->closeSession(session_id)) {
-            json response = {
-                {"op", Op::SESSION_CLOSED},
-                {"session_id", session_id}
-            };
-            ctx.send(response);
-            
+            ctx.send(json{{"op", Op::SESSION_CLOSED}, {"session_id", session_id}});
             IC_LOG_INFO("Session closed", {{"session_id", session_id}});
         } else {
-            json response = {
-                {"op", Op::ERROR},
-                {"error", "Failed to close session"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::ERROR}, {"error", Err::SESSION_CLOSE_FAILED}});
         }
     }
 
@@ -138,46 +109,28 @@ public:
         
         // Check authentication
         if (!data->authenticated) {
-            json response = {
-                {"op", Op::CONTEXT_ERROR},
-                {"error", "Not authenticated"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::CONTEXT_ERROR}, {"error", Err::NOT_AUTHENTICATED}});
             return;
         }
-        
+
         // Extract session_id
         if (!payload.contains("session_id")) {
-            json response = {
-                {"op", Op::CONTEXT_ERROR},
-                {"error", "Missing session_id"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::CONTEXT_ERROR}, {"error", Err::MISSING_FIELDS}});
             return;
         }
-        
+
         std::string session_id = payload["session_id"];
-        
+
         // Verify ownership
         auto* session = sessionManager_->getSession(session_id);
         if (!session || session->getClientId() != data->client_id) {
-            json response = {
-                {"op", Op::CONTEXT_ERROR},
-                {"session_id", session_id},
-                {"error", "Session not found or access denied"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::CONTEXT_ERROR}, {"session_id", session_id}, {"error", Err::SESSION_NOT_FOUND}});
             return;
         }
-        
+
         // Validate context field exists
         if (!payload.contains("context")) {
-            json response = {
-                {"op", Op::CONTEXT_ERROR},
-                {"session_id", session_id},
-                {"error", "Missing context field"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::CONTEXT_ERROR}, {"session_id", session_id}, {"error", Err::MISSING_FIELDS}});
             return;
         }
         
@@ -196,12 +149,7 @@ public:
                 {"client_id", data->client_id}
             });
         } else {
-            json response = {
-                {"op", Op::CONTEXT_ERROR},
-                {"session_id", session_id},
-                {"error", "Failed to set context"}
-            };
-            ctx.send(response);
+            ctx.send(json{{"op", Op::CONTEXT_ERROR}, {"session_id", session_id}, {"error", Err::INTERNAL_ERROR}});
         }
     }
 
