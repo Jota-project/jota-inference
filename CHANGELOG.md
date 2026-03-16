@@ -1,3 +1,11 @@
+# [1.1.0](https://github.com/Jota-project/jota-inference/compare/v1.0.1...v1.1.0) (2026-03-16)
+
+
+### Features
+
+* split Dockerfile into two phases for layer caching ([5fc7573](https://github.com/Jota-project/jota-inference/commit/5fc7573570e0e8c6a6455e0763e8ee1ee618e898))
+* split Dockerfile into two phases for layer caching ([#17](https://github.com/Jota-project/jota-inference/issues/17)) ([37c5b6d](https://github.com/Jota-project/jota-inference/commit/37c5b6daf8b2d7a475f91887567abaae7427ad6f))
+
 ## [1.0.1](https://github.com/Jota-project/jota-inference/compare/v1.0.0...v1.0.1) (2026-03-16)
 
 # 1.0.0 (2026-03-16)
