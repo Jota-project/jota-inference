@@ -1,8 +1,6 @@
-# --- ETAPA 1: Builder ---
+# ─── FASE A: Dependencias pesadas (cache contra llama.cpp + CMakeLists.txt) ───
 FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 AS builder
 
-# Instalar dependencias de compilación según el README
-#
 RUN apt-get update && apt-get install -y \
     build-essential \
     ca-certificates \
@@ -17,24 +15,48 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copiar solo archivos necesarios para compilar llama.cpp / submódulos primero si es posible, o todo el contexto 
-# si no hay dependencias separadas, pero dejando a CMake crear el build dir de cero.
-COPY . .
+# Solo lo que define las dependencias pesadas.
+# Cambios en src/ NO invalidan esta capa.
+COPY llama.cpp/ llama.cpp/
+COPY CMakeLists.txt .
 
-# Configurar y compilar con soporte para CUDA
-#
-RUN mkdir -p build && cd build && \
-    cmake -G Ninja -DUSE_CUDA=ON -DBUILD_TESTS=OFF ..
+# Stubs vacíos para que cmake configure no falle con add_executable().
+# No se compilan en esta fase — solo necesitan existir.
+RUN mkdir -p src/core src/server/services src/server/handlers \
+             src/config src/logging src/hardware && \
+    touch src/main.cpp \
+          src/core/Engine.cpp \
+          src/core/Session.cpp \
+          src/core/SessionManager.cpp \
+          src/config/EnvLoader.cpp \
+          src/config/AppConfig.cpp \
+          src/logging/Logger.cpp \
+          src/logging/LlamaLogger.cpp \
+          src/server/WsServer.cpp \
+          src/server/ClientAuth.cpp \
+          src/server/services/InferenceService.cpp \
+          src/server/services/MetricsService.cpp \
+          src/server/services/ModelResolver.cpp \
+          src/hardware/Monitor.cpp
 
-# Compilar con verbose para ver errores y limitar hilos para evitar OOM
-RUN cd build && \
-    ninja -v -j2
+# Configure: resuelve FetchContent, detecta CUDA, define todos los targets.
+RUN cmake -G Ninja -DUSE_CUDA=ON -DBUILD_TESTS=OFF -S . -B build
 
-# --- ETAPA 2: Runner ---
+# Compilar solo los targets pesados: llama.cpp + CUDA kernels + uSockets.
+# InferenceCore NO se compila aquí.
+RUN ninja -C build llama ggml uSockets -j2
+
+# ─── FASE B: Código propio (invalidada solo si src/ cambia) ──────────────────
+# Sobreescribe los stubs con el código real.
+COPY src/ src/
+
+# CMake detecta los .cpp modificados y recompila únicamente InferenceCore.
+# llama/ggml/uSockets ya están compilados y cacheados.
+RUN ninja -C build -j$(nproc)
+
+# ─── RUNTIME ─────────────────────────────────────────────────────────────────
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
-# Instalar dependencias mínimas de ejecución
-#
 RUN apt-get update && apt-get install -y \
     libgomp1 \
     zlib1g \
@@ -42,26 +64,16 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Crear carpeta de logs
 RUN mkdir -p /app/logs && chmod 777 /app/logs
 
-# Copiar solo el ejecutable desde la etapa de construcción
 COPY --from=builder /app/build/InferenceCore .
-# Copiar librerías compartidas de llama.cpp
 COPY --from=builder /app/build/bin/*.so* /app/lib/
-# Copiar el archivo de entorno
 COPY --from=builder /app/.env .
 
-# Exponer el puerto del servidor WebSocket (default 3000)
-#
 EXPOSE 8001
 
-# Variables de entorno por defecto
 ENV LD_LIBRARY_PATH=/app/lib
-ENV MODEL_PATH=/models/model.gguf
 ENV PORT=8001
 ENV GPU_LAYERS=-1
 
-# Comando para ejecutar el servidor
-#
 ENTRYPOINT ./InferenceCore --port $PORT --gpu-layers $GPU_LAYERS
