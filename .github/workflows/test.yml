@@ -3,8 +3,20 @@ name: C++ & Python Tests
 on:
   push:
     branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - 'build_fast.sh'
+      - '.github/workflows/test.yml'
   pull_request:
     branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - 'build_fast.sh'
+      - '.github/workflows/test.yml'
 
 jobs:
   build-and-test:
