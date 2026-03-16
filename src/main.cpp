@@ -1,4 +1,6 @@
 #include <fstream>
+#include <csignal>
+#include <thread>
 #include <sys/stat.h>
 #include "Engine.h"
 #include "WsServer.h"
@@ -8,6 +10,15 @@
 #include "services/ModelResolver.h"
 #include "Logger.h"
 #include "AppConfig.h"
+
+// --- Graceful shutdown ---
+// Only atomic stores/loads are called from the signal handler (async-signal-safe).
+// A watcher thread detects the flag and calls requestShutdown() on the server.
+static std::atomic<bool> g_shutdown_requested{false};
+
+static void handleSignal(int /*sig*/) {
+    g_shutdown_requested.store(true);
+}
 
 // Helper to get file size
 unsigned long long getFileSize(const std::string& filename) {
@@ -172,6 +183,20 @@ int main(int argc, char** argv) {
 
     // 2. Start WebSocket Server
     Server::WsServer server(engine, monitor, port, config.ctx_size);
+
+    // Install signal handlers and launch shutdown watcher before entering the blocking run()
+    std::signal(SIGTERM, handleSignal);
+    std::signal(SIGINT,  handleSignal);
+
+    std::thread shutdownWatcher([&server]() {
+        while (!g_shutdown_requested.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
+        IC_LOG_INFO("Shutdown signal received — initiating graceful shutdown");
+        server.requestShutdown();
+    });
+    shutdownWatcher.detach();
+
     server.run();
     
     monitor.shutdown();

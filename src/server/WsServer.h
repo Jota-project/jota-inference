@@ -44,6 +44,10 @@ public:
     // Start the server loop (blocking)
     void run();
 
+    // Request a graceful shutdown from any thread (signal-safe via atomic flag).
+    // Stops the uWS event loop after closing all sessions.
+    void requestShutdown();
+
 private:
     void watchdogLoop();
 
@@ -61,6 +65,7 @@ private:
     
     // uWebSockets loop
     uWS::Loop* loop_ = nullptr;
+    us_listen_socket_t* listenSocket_ = nullptr;
     
     // Services
     std::unique_ptr<InferenceService> inferenceService_;

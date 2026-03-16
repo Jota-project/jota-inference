@@ -66,6 +66,31 @@ WsServer::~WsServer() {
     IC_LOG_INFO("WsServer destroyed");
 }
 
+void WsServer::requestShutdown() {
+    // Spin briefly if run() hasn't set loop_ yet (signal arriving at startup)
+    for (int i = 0; i < 50 && !loop_; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    if (!loop_) {
+        IC_LOG_WARN("requestShutdown: loop not ready, ignoring");
+        return;
+    }
+
+    // loop_->defer runs the callback on the uWS thread — safe to call from any thread.
+    // Closing the listen socket reduces num_polls to 0, which exits us_loop_run().
+    loop_->defer([this]() {
+        IC_LOG_INFO("Graceful shutdown initiated: closing all sessions");
+        if (sessionManager_) {
+            sessionManager_->closeAllSessions();
+        }
+        running_ = false;
+        if (listenSocket_) {
+            us_listen_socket_close(0, listenSocket_);
+            listenSocket_ = nullptr;
+        }
+    });
+}
+
 void WsServer::watchdogLoop() {
     while (running_) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -76,7 +101,7 @@ void WsServer::watchdogLoop() {
 
         auto sessions = sessionManager_->getAllSessions();
         for (auto* session : sessions) {
-            if (session && session->isGenerating()) {
+            if (session && session->isGenerating() && !session->isPrefilling()) {
                 auto lastActivity = session->getLastActivityMs();
                 if (lastActivity > 0 && (now - lastActivity) > watchdog_timeout_sec_ * 1000) {
                     std::string session_id = session->getSessionId();
@@ -100,7 +125,7 @@ void WsServer::watchdogLoop() {
                                     json response = {
                                         {"op", Op::ERROR},
                                         {"session_id", session_id},
-                                        {"error", "Session timeout: Model blocked"}
+                                        {"error", Err::SESSION_TIMEOUT}
                                     };
                                     ws->send(response.dump(), uWS::OpCode::TEXT);
                                 }
@@ -214,8 +239,9 @@ void WsServer::run() {
                 }
             }
         })
-        .listen(port_, [this](auto* listenSocket) {
-            if (listenSocket) {
+        .listen(port_, [this](auto* token) {
+            if (token) {
+                listenSocket_ = token;
                 IC_LOG_INFO("WebSocket server listening", {{"port", port_}});
             } else {
                 IC_LOG_ERROR("Failed to listen", {{"port", port_}});
