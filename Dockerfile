@@ -1,5 +1,5 @@
 # ─── FASE A: Dependencias pesadas (cache contra llama.cpp + CMakeLists.txt) ───
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:13.2.1-devel-ubuntu22.04 AS builder
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -55,7 +55,7 @@ COPY src/ src/
 RUN ninja -C build -j$(nproc)
 
 # ─── RUNTIME ─────────────────────────────────────────────────────────────────
-FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+FROM nvidia/cuda:13.2.1-runtime-ubuntu22.04
 
 RUN apt-get update && apt-get install -y \
     libgomp1 \
