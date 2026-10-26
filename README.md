@@ -1,8 +1,6 @@
-![Status: Alternative](https://img.shields.io/badge/status-Alternative-yellow)
+![Status: Legacy · Archived](https://img.shields.io/badge/status-Legacy%20%C2%B7%20Archived-lightgrey)
 
-> ⚠️ **Este repo está en modo Alternative.** Sin commits desde marzo 2026. Para nuevos deployments, recomendamos usar [`llama.cpp`](https://github.com/ggerganov/llama.cpp) standalone combinado con [OpenClaw](https://github.com/Jota-project/.github/blob/main/ARCHITECTURE.md) en lugar de `jota-orchestrator`. Este binario se mantiene por compatibilidad con setups existentes que usan `jota-orchestrator` + `jota-inference`.
->
-> Si llegas aquí desde el [Jota-project](https://github.com/Jota-project), consulta el [org README](https://github.com/Jota-project/.github) para entender el rol de cada repo en el ecosistema.
+> ⚠️ **Legacy · Archived.** Sustituido por OpenClaw (https://github.com/openclaw/openclaw) dentro de la arquitectura actual de Jota: https://github.com/jota-project/.github/blob/main/ARCHITECTURE.md
 
 ---
 
@@ -57,7 +55,7 @@ The server can validate tokens against a central `jota-db` instance:
 ```bash
 export JOTA_DB_URL="http://localhost:8000/api/db"
 ```
-This mode is kept for compatibility with setups that centralize auth across multiple Jota services. For new deployments, prefer the static `AUTH_TOKEN` mode.
+This mode depended on `jota-db`, which is also legacy and will be archived.
 
  ### 3. Run Server
  
@@ -548,6 +546,5 @@ This is a personal project optimized for specific hardware (GTX 1060 3GB). Sugge
 
 ## Status & roadmap
 
-- **Status:** Alternative. Frozen on `1.1.0` (2026-03-16).
-- **No new feature work planned.** For new local LLM deployments, use `llama.cpp` standalone with OpenClaw.
-- **For new deployments:** see [org ARCHITECTURE.md](https://github.com/Jota-project/.github/blob/main/ARCHITECTURE.md) for the recommended stack.
+- **Status:** Legacy · Archived. Frozen on `1.1.0` (2026-03-16). No further development or maintenance.
+- **Replaced by** [OpenClaw](https://github.com/openclaw/openclaw). Current Jota architecture: https://github.com/jota-project/.github/blob/main/ARCHITECTURE.md

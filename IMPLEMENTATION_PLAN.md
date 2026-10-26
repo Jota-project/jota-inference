@@ -1,3 +1,5 @@
+> ⚠️ **Legacy · Archived.** Este documento describe jota-inference (InferenceCenter), un componente legado de Jota sustituido por OpenClaw (https://github.com/openclaw/openclaw). Arquitectura actual: https://github.com/jota-project/.github/blob/main/ARCHITECTURE.md
+
 # Implementation Plan: InferenceCenter
 
 > **Status**: ✅ **COMPLETED** - Parallel session support with API authentication implemented and tested.
